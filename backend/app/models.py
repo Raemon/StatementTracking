@@ -78,6 +78,7 @@ class Quote(Base):
     quote_text: Mapped[str] = mapped_column(Text, nullable=False)
     context: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     date_said: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    date_recorded: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     is_duplicate: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default="0"
     )

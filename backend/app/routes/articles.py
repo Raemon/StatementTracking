@@ -1,3 +1,5 @@
+from datetime import date
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -114,6 +116,7 @@ def save_article(req: SaveRequest, db: Session = Depends(get_db)):
             quote_text=q.quote_text,
             context=q.context,
             date_said=q.date_said,
+            date_recorded=q.date_recorded or date.today(),
             is_duplicate=q.mark_as_duplicate,
             duplicate_of_id=dup_of_id,
         )

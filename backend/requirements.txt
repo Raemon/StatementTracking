@@ -7,3 +7,9 @@ newspaper4k
 lxml_html_clean
 python-dotenv
 pydantic
+
+# Testing
+pytest
+pytest-asyncio
+httpx
+pytest-mock

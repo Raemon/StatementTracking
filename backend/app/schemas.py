@@ -82,6 +82,7 @@ class QuoteSaveItem(BaseModel):
     quote_text: str
     context: Optional[str] = None
     date_said: Optional[date] = None
+    date_recorded: Optional[date] = None
     person_id: Optional[int] = None
     new_person: Optional[PersonCreate] = None
     mark_as_duplicate: bool = False
@@ -102,6 +103,7 @@ class QuoteUpdate(BaseModel):
     quote_text: Optional[str] = None
     context: Optional[str] = None
     date_said: Optional[date] = None
+    date_recorded: Optional[date] = None
     person_id: Optional[int] = None
 
 
@@ -136,6 +138,7 @@ class QuoteOut(BaseModel):
     quote_text: str
     context: Optional[str] = None
     date_said: Optional[date] = None
+    date_recorded: Optional[date] = None
     is_duplicate: bool = False
     duplicate_of_id: Optional[int] = None
     created_at: datetime

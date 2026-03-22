@@ -84,6 +84,7 @@ def get_person(person_id: int, db: Session = Depends(get_db)):
             "quote_text": q.quote_text,
             "context": q.context,
             "date_said": q.date_said.isoformat() if q.date_said else None,
+            "date_recorded": q.date_recorded.isoformat() if q.date_recorded else None,
             "created_at": q.created_at.isoformat() if q.created_at else None,
             "article": {
                 "url": q.article.url,

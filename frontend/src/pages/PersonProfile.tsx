@@ -179,7 +179,8 @@ export default function PersonProfile() {
               <p className="text-sm text-slate-500 mb-2">{q.context}</p>
             )}
             <div className="flex items-center gap-4 text-xs text-slate-400">
-              {q.date_said && <span>{q.date_said}</span>}
+              {q.date_said && <span>Said: {q.date_said}</span>}
+              {q.date_recorded && <span>Recorded: {q.date_recorded}</span>}
               {q.article && (
                 <a
                   href={q.article.url}

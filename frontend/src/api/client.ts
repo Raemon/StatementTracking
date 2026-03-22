@@ -93,7 +93,7 @@ export function fetchQuote(id: number): Promise<QuoteWithDetails> {
 
 export function updateQuote(
   id: number,
-  data: { quote_text?: string; context?: string; date_said?: string | null; person_id?: number },
+  data: { quote_text?: string; context?: string; date_said?: string | null; date_recorded?: string | null; person_id?: number },
 ): Promise<QuoteWithDetails> {
   return request(`/quotes/${id}`, {
     method: 'PUT',

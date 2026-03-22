@@ -19,6 +19,7 @@ def _quote_to_dict(q: Quote) -> dict:
         "quote_text": q.quote_text,
         "context": q.context,
         "date_said": q.date_said.isoformat() if q.date_said else None,
+        "date_recorded": q.date_recorded.isoformat() if q.date_recorded else None,
         "is_duplicate": q.is_duplicate,
         "duplicate_of_id": q.duplicate_of_id,
         "created_at": q.created_at.isoformat() if q.created_at else None,

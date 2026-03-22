@@ -12,7 +12,8 @@ export default function QuotesBrowser() {
   const [editForm, setEditForm] = useState<{
     quote_text: string;
     date_said: string;
-  }>({ quote_text: '', date_said: '' });
+    date_recorded: string;
+  }>({ quote_text: '', date_said: '', date_recorded: '' });
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['quotes', filters],
@@ -20,7 +21,7 @@ export default function QuotesBrowser() {
   });
 
   const updateMut = useMutation({
-    mutationFn: ({ id, ...rest }: { id: number; quote_text: string; date_said: string | null }) =>
+    mutationFn: ({ id, ...rest }: { id: number; quote_text: string; date_said: string | null; date_recorded: string | null }) =>
       updateQuote(id, rest),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['quotes'] });
@@ -38,6 +39,7 @@ export default function QuotesBrowser() {
     setEditForm({
       quote_text: q.quote_text,
       date_said: q.date_said || '',
+      date_recorded: q.date_recorded || '',
     });
   }
 
@@ -46,6 +48,7 @@ export default function QuotesBrowser() {
       id,
       quote_text: editForm.quote_text,
       date_said: editForm.date_said || null,
+      date_recorded: editForm.date_recorded || null,
     });
   }
 
@@ -174,12 +177,12 @@ function QuoteRow({
   quote: QuoteWithDetails;
   isExpanded: boolean;
   isEditing: boolean;
-  editForm: { quote_text: string; date_said: string };
+  editForm: { quote_text: string; date_said: string; date_recorded: string };
   onToggle: () => void;
   onStartEdit: () => void;
   onCancelEdit: () => void;
   onSaveEdit: () => void;
-  onEditChange: (f: { quote_text: string; date_said: string }) => void;
+  onEditChange: (f: { quote_text: string; date_said: string; date_recorded: string }) => void;
   onDelete: () => void;
   onViewOriginal: (id: number) => void;
 }) {
@@ -256,14 +259,30 @@ function QuoteRow({
                   rows={3}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
                 />
-                <input
-                  type="date"
-                  value={editForm.date_said}
-                  onChange={(e) =>
-                    onEditChange({ ...editForm, date_said: e.target.value })
-                  }
-                  className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                />
+                <div className="flex gap-4">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">Date Said</label>
+                    <input
+                      type="date"
+                      value={editForm.date_said}
+                      onChange={(e) =>
+                        onEditChange({ ...editForm, date_said: e.target.value })
+                      }
+                      className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">Date Recorded</label>
+                    <input
+                      type="date"
+                      value={editForm.date_recorded}
+                      onChange={(e) =>
+                        onEditChange({ ...editForm, date_recorded: e.target.value })
+                      }
+                      className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                    />
+                  </div>
+                </div>
                 <div className="flex gap-2">
                   <button
                     onClick={onSaveEdit}
@@ -321,6 +340,11 @@ function QuoteRow({
                 {quote.context && (
                   <p className="text-sm text-slate-500 mb-3">
                     <span className="font-medium">Context:</span> {quote.context}
+                  </p>
+                )}
+                {quote.date_recorded && (
+                  <p className="text-sm text-slate-400 mb-3">
+                    <span className="font-medium">Recorded:</span> {quote.date_recorded}
                   </p>
                 )}
                 {quote.article && (

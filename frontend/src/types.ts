@@ -88,6 +88,7 @@ export interface QuoteWithDetails {
   quote_text: string;
   context: string | null;
   date_said: string | null;
+  date_recorded: string | null;
   is_duplicate: boolean;
   duplicate_of_id: number | null;
   created_at: string;
@@ -137,6 +138,7 @@ export interface PersonDetail extends Person {
     quote_text: string;
     context: string | null;
     date_said: string | null;
+    date_recorded: string | null;
     created_at: string;
     article: {
       url: string;
