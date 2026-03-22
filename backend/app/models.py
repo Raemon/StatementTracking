@@ -2,7 +2,7 @@ import enum
 from datetime import date, datetime
 from typing import List, Optional
 
-from sqlalchemy import Date, DateTime, Enum, ForeignKey, String, Text
+from sqlalchemy import Boolean, Date, DateTime, Enum, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
@@ -78,9 +78,18 @@ class Quote(Base):
     quote_text: Mapped[str] = mapped_column(Text, nullable=False)
     context: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     date_said: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    is_duplicate: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default="0"
+    )
+    duplicate_of_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("quotes.id"), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now()
     )
 
     person: Mapped["Person"] = relationship(back_populates="quotes")
     article: Mapped["Article"] = relationship(back_populates="quotes")
+    duplicate_of: Mapped[Optional["Quote"]] = relationship(
+        remote_side=[id], foreign_keys=[duplicate_of_id]
+    )

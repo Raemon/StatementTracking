@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchQuotes, updateQuote, deleteQuote, type QuoteFilters } from '../api/client';
+import { fetchQuotes, fetchQuote, updateQuote, deleteQuote, type QuoteFilters } from '../api/client';
 import type { QuoteWithDetails } from '../types';
 import FilterBar from '../components/FilterBar';
 
@@ -60,6 +60,17 @@ export default function QuotesBrowser() {
 
       <FilterBar filters={filters} onChange={setFilters} />
 
+      <div className="mb-4 px-4 py-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700 flex items-start gap-2">
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 shrink-0 mt-0.5" viewBox="0 0 20 20" fill="currentColor">
+          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+        </svg>
+        <span>
+          Duplicate quotes are automatically detected when articles are saved and <strong>hidden by default</strong> to
+          keep your data clean. Use the "Show duplicates" checkbox above to reveal them. Duplicates are
+          identified by matching normalized text for the same speaker.
+        </span>
+      </div>
+
       {error && (
         <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
           {(error as Error).message}
@@ -101,6 +112,7 @@ export default function QuotesBrowser() {
                     onDelete={() => {
                       if (confirm('Delete this quote?')) deleteMut.mutate(q.id);
                     }}
+                    onViewOriginal={(origId) => setExpanded(origId)}
                   />
                 ))}
                 {data?.quotes.length === 0 && (
@@ -157,6 +169,7 @@ function QuoteRow({
   onSaveEdit,
   onEditChange,
   onDelete,
+  onViewOriginal,
 }: {
   quote: QuoteWithDetails;
   isExpanded: boolean;
@@ -168,7 +181,14 @@ function QuoteRow({
   onSaveEdit: () => void;
   onEditChange: (f: { quote_text: string; date_said: string }) => void;
   onDelete: () => void;
+  onViewOriginal: (id: number) => void;
 }) {
+  const { data: originalQuote } = useQuery({
+    queryKey: ['quote', quote.duplicate_of_id],
+    queryFn: () => fetchQuote(quote.duplicate_of_id!),
+    enabled: isExpanded && !!quote.duplicate_of_id,
+  });
+
   const partyColor: Record<string, string> = {
     Democrat: 'bg-blue-100 text-blue-700',
     Republican: 'bg-red-100 text-red-700',
@@ -203,9 +223,18 @@ function QuoteRow({
             '—'
           )}
         </td>
-        <td className="px-4 py-3 text-slate-700 max-w-xs truncate">
-          {quote.quote_text.substring(0, 100)}
-          {quote.quote_text.length > 100 ? '...' : ''}
+        <td className="px-4 py-3 text-slate-700 max-w-xs">
+          <div className="flex items-center gap-2">
+            <span className="truncate">
+              {quote.quote_text.substring(0, 100)}
+              {quote.quote_text.length > 100 ? '...' : ''}
+            </span>
+            {quote.is_duplicate && (
+              <span className="shrink-0 inline-block px-1.5 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700 border border-amber-200">
+                Duplicate
+              </span>
+            )}
+          </div>
         </td>
         <td className="px-4 py-3 text-slate-500">
           {quote.article?.publication || '—'}
@@ -255,6 +284,40 @@ function QuoteRow({
                 <blockquote className="text-slate-800 leading-relaxed mb-3 italic border-l-4 border-blue-300 pl-4">
                   "{quote.quote_text}"
                 </blockquote>
+                {quote.is_duplicate && originalQuote && (
+                  <div className="mb-3 px-3 py-2.5 bg-amber-50 border border-amber-200 rounded-lg text-sm">
+                    <p className="text-amber-800 font-medium text-xs uppercase tracking-wider mb-1.5">
+                      Duplicate of
+                    </p>
+                    <blockquote className="text-amber-900 text-xs italic leading-relaxed border-l-2 border-amber-300 pl-2.5">
+                      "{originalQuote.quote_text.length > 200
+                        ? originalQuote.quote_text.substring(0, 200) + '...'
+                        : originalQuote.quote_text}"
+                    </blockquote>
+                    <div className="flex items-center gap-3 mt-2 text-xs">
+                      {originalQuote.article && (
+                        <a
+                          href={originalQuote.article.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-amber-600 hover:text-amber-800 underline"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {originalQuote.article.title || originalQuote.article.publication || 'Source article'}
+                        </a>
+                      )}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onViewOriginal(originalQuote.id);
+                        }}
+                        className="text-amber-600 hover:text-amber-800 underline font-medium"
+                      >
+                        Jump to original
+                      </button>
+                    </div>
+                  </div>
+                )}
                 {quote.context && (
                   <p className="text-sm text-slate-500 mb-3">
                     <span className="font-medium">Context:</span> {quote.context}

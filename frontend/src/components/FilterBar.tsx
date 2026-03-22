@@ -60,6 +60,18 @@ export default function FilterBar({ filters, onChange }: Props) {
         title="To date"
       />
 
+      <label className="flex items-center gap-2 px-3 py-2 cursor-pointer select-none">
+        <input
+          type="checkbox"
+          checked={filters.include_duplicates || false}
+          onChange={(e) =>
+            onChange({ ...filters, include_duplicates: e.target.checked || undefined, page: 1 })
+          }
+          className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+        />
+        <span className="text-sm text-slate-600">Show duplicates</span>
+      </label>
+
       {Object.values(filters).some((v) => v) && (
         <button
           onClick={() => onChange({})}

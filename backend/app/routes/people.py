@@ -15,7 +15,10 @@ router = APIRouter(prefix="/api/people", tags=["people"])
 def list_people(search: Optional[str] = None, db: Session = Depends(get_db)):
     query = (
         db.query(Person, func.count(Quote.id).label("quote_count"))
-        .outerjoin(Quote, Quote.person_id == Person.id)
+        .outerjoin(
+            Quote,
+            (Quote.person_id == Person.id) & (Quote.is_duplicate == False),  # noqa: E712
+        )
         .group_by(Person.id)
     )
 
@@ -54,6 +57,7 @@ def get_person(person_id: int, db: Session = Depends(get_db)):
     quotes = (
         db.query(Quote)
         .filter(Quote.person_id == person_id)
+        .filter(Quote.is_duplicate == False)  # noqa: E712
         .order_by(Quote.date_said.desc().nullslast(), Quote.created_at.desc())
         .all()
     )

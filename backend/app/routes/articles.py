@@ -13,6 +13,7 @@ from ..schemas import (
 )
 from ..services.fetcher import fetch_article, FetchError
 from ..services.extractor import extract_quotes, ExtractionError
+from ..services.dedup import find_duplicate, check_duplicates_batch
 
 router = APIRouter(prefix="/api/articles", tags=["articles"])
 
@@ -66,6 +67,7 @@ def save_article(req: SaveRequest, db: Session = Depends(get_db)):
         db.flush()
 
     saved_count = 0
+    duplicate_count = 0
     created_people: dict[str, int] = {}
     for q in req.quotes:
         if q.person_id:
@@ -101,15 +103,28 @@ def save_article(req: SaveRequest, db: Session = Depends(get_db)):
                 detail="Each quote must have either person_id or new_person.",
             )
 
+        dup_of_id = None
+        if q.mark_as_duplicate:
+            dup = find_duplicate(db, person_id, q.quote_text)
+            dup_of_id = dup.id if dup else None
+
         quote = Quote(
             person_id=person_id,
             article_id=article.id,
             quote_text=q.quote_text,
             context=q.context,
             date_said=q.date_said,
+            is_duplicate=q.mark_as_duplicate,
+            duplicate_of_id=dup_of_id,
         )
         db.add(quote)
         saved_count += 1
+        if q.mark_as_duplicate:
+            duplicate_count += 1
 
     db.commit()
-    return SaveResponse(article_id=article.id, quote_count=saved_count)
+    return SaveResponse(
+        article_id=article.id,
+        quote_count=saved_count,
+        duplicate_count=duplicate_count,
+    )

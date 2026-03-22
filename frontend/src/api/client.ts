@@ -7,6 +7,8 @@ import type {
   QuoteListResponse,
   QuoteWithDetails,
   Stats,
+  DuplicateCheckItem,
+  DuplicateCheckResult,
 } from '../types';
 
 const BASE = '/api';
@@ -69,6 +71,7 @@ export interface QuoteFilters {
   type?: string;
   from_date?: string;
   to_date?: string;
+  include_duplicates?: boolean;
   page?: number;
   page_size?: number;
 }
@@ -100,6 +103,17 @@ export function updateQuote(
 
 export function deleteQuote(id: number): Promise<{ ok: boolean }> {
   return request(`/quotes/${id}`, { method: 'DELETE' });
+}
+
+// ── Duplicate Detection ──────────────────────────────────────────────
+
+export function checkDuplicates(
+  items: DuplicateCheckItem[],
+): Promise<{ results: DuplicateCheckResult[] }> {
+  return request('/quotes/check-duplicates', {
+    method: 'POST',
+    body: JSON.stringify({ items }),
+  });
 }
 
 // ── Stats ────────────────────────────────────────────────────────────

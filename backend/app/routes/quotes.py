@@ -7,7 +7,8 @@ from sqlalchemy.orm import Session, joinedload
 
 from ..database import get_db
 from ..models import Quote, Person, Article
-from ..schemas import QuoteUpdate
+from ..schemas import QuoteUpdate, DuplicateCheckRequest
+from ..services.dedup import check_duplicates_batch
 
 router = APIRouter(prefix="/api/quotes", tags=["quotes"])
 
@@ -18,6 +19,8 @@ def _quote_to_dict(q: Quote) -> dict:
         "quote_text": q.quote_text,
         "context": q.context,
         "date_said": q.date_said.isoformat() if q.date_said else None,
+        "is_duplicate": q.is_duplicate,
+        "duplicate_of_id": q.duplicate_of_id,
         "created_at": q.created_at.isoformat() if q.created_at else None,
         "person": {
             "id": q.person.id,
@@ -43,6 +46,17 @@ def _quote_to_dict(q: Quote) -> dict:
     }
 
 
+@router.post("/check-duplicates")
+def check_duplicates(
+    req: DuplicateCheckRequest,
+    db: Session = Depends(get_db),
+):
+    results = check_duplicates_batch(
+        db, [item.model_dump() for item in req.items]
+    )
+    return {"results": results}
+
+
 @router.get("")
 def list_quotes(
     person_id: Optional[int] = None,
@@ -51,6 +65,7 @@ def list_quotes(
     type: Optional[str] = None,
     from_date: Optional[date] = None,
     to_date: Optional[date] = None,
+    include_duplicates: bool = Query(False),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
     db: Session = Depends(get_db),
@@ -59,6 +74,9 @@ def list_quotes(
         db.query(Quote)
         .options(joinedload(Quote.person), joinedload(Quote.article))
     )
+
+    if not include_duplicates:
+        query = query.filter(Quote.is_duplicate == False)  # noqa: E712
 
     if person_id:
         query = query.filter(Quote.person_id == person_id)

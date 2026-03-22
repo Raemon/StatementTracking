@@ -84,6 +84,7 @@ class QuoteSaveItem(BaseModel):
     date_said: Optional[date] = None
     person_id: Optional[int] = None
     new_person: Optional[PersonCreate] = None
+    mark_as_duplicate: bool = False
 
 
 class SaveRequest(BaseModel):
@@ -94,6 +95,7 @@ class SaveRequest(BaseModel):
 class SaveResponse(BaseModel):
     article_id: int
     quote_count: int
+    duplicate_count: int = 0
 
 
 class QuoteUpdate(BaseModel):
@@ -103,12 +105,39 @@ class QuoteUpdate(BaseModel):
     person_id: Optional[int] = None
 
 
+class DuplicateCheckItem(BaseModel):
+    speaker_name: str
+    quote_text: str
+
+
+class DuplicateCheckRequest(BaseModel):
+    items: List[DuplicateCheckItem]
+
+
+class ExistingQuoteMatch(BaseModel):
+    id: int
+    quote_text: str
+    article_title: Optional[str] = None
+    article_url: Optional[str] = None
+
+
+class DuplicateCheckResult(BaseModel):
+    is_duplicate: bool
+    existing_quote: Optional[ExistingQuoteMatch] = None
+
+
+class DuplicateCheckResponse(BaseModel):
+    results: List[DuplicateCheckResult]
+
+
 class QuoteOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
     quote_text: str
     context: Optional[str] = None
     date_said: Optional[date] = None
+    is_duplicate: bool = False
+    duplicate_of_id: Optional[int] = None
     created_at: datetime
     person: Optional[PersonBase] = None
     article: Optional[ArticleMetadata] = None

@@ -10,12 +10,17 @@ router = APIRouter(prefix="/api/stats", tags=["stats"])
 
 @router.get("")
 def get_stats(db: Session = Depends(get_db)):
-    total_quotes = db.query(func.count(Quote.id)).scalar() or 0
+    non_dup = Quote.is_duplicate == False  # noqa: E712
+
+    total_quotes = (
+        db.query(func.count(Quote.id)).filter(non_dup).scalar() or 0
+    )
     total_people = db.query(func.count(Person.id)).scalar() or 0
 
     party_rows = (
         db.query(Person.party, func.count(Quote.id))
         .join(Quote, Quote.person_id == Person.id)
+        .filter(non_dup)
         .group_by(Person.party)
         .all()
     )
@@ -30,6 +35,7 @@ def get_stats(db: Session = Depends(get_db)):
             func.count(Quote.id),
         )
         .filter(Quote.date_said.isnot(None))
+        .filter(non_dup)
         .group_by("month")
         .order_by("month")
         .all()
@@ -45,6 +51,7 @@ def get_stats(db: Session = Depends(get_db)):
             func.count(Quote.id).label("cnt"),
         )
         .join(Quote, Quote.person_id == Person.id)
+        .filter(non_dup)
         .group_by(Person.id)
         .order_by(func.count(Quote.id).desc())
         .limit(10)

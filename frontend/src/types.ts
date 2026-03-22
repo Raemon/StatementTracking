@@ -52,6 +52,7 @@ export interface QuoteSaveItem {
   date_said?: string | null;
   person_id?: number | null;
   new_person?: PersonCreate | null;
+  mark_as_duplicate?: boolean;
 }
 
 export interface SaveRequest {
@@ -62,6 +63,24 @@ export interface SaveRequest {
 export interface SaveResponse {
   article_id: number;
   quote_count: number;
+  duplicate_count: number;
+}
+
+export interface DuplicateCheckItem {
+  speaker_name: string;
+  quote_text: string;
+}
+
+export interface ExistingQuoteMatch {
+  id: number;
+  quote_text: string;
+  article_title: string | null;
+  article_url: string | null;
+}
+
+export interface DuplicateCheckResult {
+  is_duplicate: boolean;
+  existing_quote: ExistingQuoteMatch | null;
 }
 
 export interface QuoteWithDetails {
@@ -69,6 +88,8 @@ export interface QuoteWithDetails {
   quote_text: string;
   context: string | null;
   date_said: string | null;
+  is_duplicate: boolean;
+  duplicate_of_id: number | null;
   created_at: string;
   person: {
     id: number;

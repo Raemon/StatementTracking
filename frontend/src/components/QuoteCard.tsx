@@ -1,5 +1,5 @@
 import PersonTypeahead from './PersonTypeahead';
-import type { PersonCreate, SpeakerType } from '../types';
+import type { PersonCreate, SpeakerType, ExistingQuoteMatch } from '../types';
 
 export interface QuoteCardData {
   speaker_name: string;
@@ -10,6 +10,8 @@ export interface QuoteCardData {
   approved: boolean;
   person_id: number | null;
   new_person: PersonCreate | null;
+  duplicate_match: ExistingQuoteMatch | null;
+  mark_as_duplicate: boolean;
 }
 
 interface Props {
@@ -20,12 +22,16 @@ interface Props {
 }
 
 export default function QuoteCard({ data, index, onChange, onDelete }: Props) {
+  const isDup = !!data.duplicate_match;
+
   return (
     <div
       className={`border rounded-xl p-5 transition-all ${
-        data.approved
-          ? 'border-blue-200 bg-white shadow-sm'
-          : 'border-slate-200 bg-slate-50 opacity-60'
+        isDup
+          ? 'border-amber-300 bg-amber-50/50 shadow-sm'
+          : data.approved
+            ? 'border-blue-200 bg-white shadow-sm'
+            : 'border-slate-200 bg-slate-50 opacity-60'
       }`}
     >
       <div className="flex items-start justify-between mb-3">
@@ -51,6 +57,34 @@ export default function QuoteCard({ data, index, onChange, onDelete }: Props) {
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
+          <label
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-colors select-none ${
+              data.mark_as_duplicate
+                ? 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+                : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
+            }`}
+            title={data.mark_as_duplicate ? 'Will be saved as duplicate' : 'Will be saved as original'}
+          >
+            <input
+              type="checkbox"
+              checked={data.mark_as_duplicate}
+              onChange={(e) => onChange(index, { mark_as_duplicate: e.target.checked })}
+              className="sr-only"
+            />
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className={`h-3.5 w-3.5 transition-colors ${data.mark_as_duplicate ? 'text-amber-600' : 'text-slate-300'}`}
+              viewBox="0 0 20 20"
+              fill="currentColor"
+            >
+              {data.mark_as_duplicate ? (
+                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+              ) : (
+                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+              )}
+            </svg>
+            Duplicate
+          </label>
           <button
             onClick={() => onChange(index, { approved: !data.approved })}
             className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
@@ -72,6 +106,75 @@ export default function QuoteCard({ data, index, onChange, onDelete }: Props) {
           </button>
         </div>
       </div>
+
+      {isDup && data.duplicate_match && (
+        <div className="mb-3 px-3 py-2.5 bg-amber-100 border border-amber-200 rounded-lg text-sm text-amber-800">
+          <div className="flex items-start gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 shrink-0 mt-0.5 text-amber-600" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+            </svg>
+            <div className="min-w-0">
+              <p className="font-medium">Potential duplicate detected</p>
+              <p className="text-xs text-amber-700 mt-0.5">
+                A similar quote from this speaker already exists. It will still be saved but
+                marked as a duplicate and hidden from default views.
+              </p>
+              <div className="mt-2 pl-3 border-l-2 border-amber-300">
+                <p className="text-xs text-amber-900 italic leading-relaxed">
+                  "{data.duplicate_match.quote_text}"
+                </p>
+                {data.duplicate_match.article_title && (
+                  <p className="text-xs text-amber-600 mt-1">
+                    From{' '}
+                    {data.duplicate_match.article_url ? (
+                      <a
+                        href={data.duplicate_match.article_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="underline hover:text-amber-800"
+                      >
+                        {data.duplicate_match.article_title}
+                      </a>
+                    ) : (
+                      <span>{data.duplicate_match.article_title}</span>
+                    )}
+                    {' · '}
+                    <a
+                      href={`/quotes?include_duplicates=true&search=${encodeURIComponent(data.duplicate_match.quote_text.substring(0, 40))}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="underline hover:text-amber-800"
+                    >
+                      View in Quotes
+                    </a>
+                  </p>
+                )}
+                {!data.duplicate_match.article_title && data.duplicate_match.article_url && (
+                  <p className="text-xs text-amber-600 mt-1">
+                    <a
+                      href={data.duplicate_match.article_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="underline hover:text-amber-800"
+                    >
+                      View source article
+                    </a>
+                    {' · '}
+                    <a
+                      href={`/quotes?include_duplicates=true&search=${encodeURIComponent(data.duplicate_match.quote_text.substring(0, 40))}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="underline hover:text-amber-800"
+                    >
+                      View in Quotes
+                    </a>
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="space-y-3">
         <div>

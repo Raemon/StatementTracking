@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { extractArticle, saveArticle } from '../api/client';
+import { extractArticle, saveArticle, checkDuplicates } from '../api/client';
 import type { ArticleMetadata, QuoteSaveItem } from '../types';
 import QuoteCard, { type QuoteCardData } from '../components/QuoteCard';
 
@@ -25,20 +25,41 @@ export default function SubmitArticle() {
     try {
       const res = await extractArticle(url.trim());
       setArticle(res.article);
-      setQuotes(
-        res.quotes.map((q) => ({
-          speaker_name: q.speaker_name,
-          speaker_title: q.speaker_title,
-          speaker_type: q.speaker_type || 'elected',
-          quote_text: q.quote_text,
-          context: q.context,
-          approved: true,
-          person_id: null,
-          new_person: q.speaker_name
-            ? { name: q.speaker_name, type: q.speaker_type || 'elected', role: q.speaker_title || null }
-            : null,
-        })),
-      );
+
+      const cards: QuoteCardData[] = res.quotes.map((q) => ({
+        speaker_name: q.speaker_name,
+        speaker_title: q.speaker_title,
+        speaker_type: q.speaker_type || 'elected',
+        quote_text: q.quote_text,
+        context: q.context,
+        approved: true,
+        person_id: null,
+        new_person: q.speaker_name
+          ? { name: q.speaker_name, type: q.speaker_type || 'elected', role: q.speaker_title || null }
+          : null,
+        duplicate_match: null,
+        mark_as_duplicate: false,
+      }));
+
+      try {
+        const dupCheck = await checkDuplicates(
+          res.quotes.map((q) => ({
+            speaker_name: q.speaker_name,
+            quote_text: q.quote_text,
+          })),
+        );
+        dupCheck.results.forEach((result, i) => {
+          if (result.is_duplicate && result.existing_quote) {
+            cards[i].duplicate_match = result.existing_quote;
+            cards[i].mark_as_duplicate = true;
+            cards[i].approved = false;
+          }
+        });
+      } catch {
+        // non-critical — proceed without dup info
+      }
+
+      setQuotes(cards);
     } catch (err: any) {
       setError(err.message || 'Failed to extract quotes.');
     } finally {
@@ -84,12 +105,16 @@ export default function SubmitArticle() {
         date_said: article.published_date,
         person_id: q.person_id,
         new_person: q.new_person,
+        mark_as_duplicate: q.mark_as_duplicate,
       })),
     };
 
     try {
       const res = await saveArticle(payload);
-      setSuccess(`Saved ${res.quote_count} quote(s) from this article.`);
+      const dupMsg = res.duplicate_count > 0
+        ? ` (${res.duplicate_count} marked as duplicate${res.duplicate_count !== 1 ? 's' : ''} and hidden from default views)`
+        : '';
+      setSuccess(`Saved ${res.quote_count} quote(s) from this article${dupMsg}.`);
       setArticle(null);
       setQuotes([]);
       setUrl('');
@@ -101,6 +126,7 @@ export default function SubmitArticle() {
   }
 
   const approvedCount = quotes.filter((q) => q.approved).length;
+  const duplicateCount = quotes.filter((q) => q.duplicate_match).length;
 
   return (
     <div>
@@ -197,13 +223,30 @@ export default function SubmitArticle() {
             </div>
           </div>
 
+          {duplicateCount > 0 && (
+            <div className="mb-4 px-4 py-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800 flex items-start gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 shrink-0 mt-0.5 text-amber-600" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+              <span>
+                <strong>{duplicateCount}</strong> quote{duplicateCount !== 1 ? 's' : ''} match
+                existing records and {duplicateCount !== 1 ? 'have' : 'has'} been auto-excluded.
+                You can still approve them if needed — they'll be saved but marked as duplicates
+                and hidden from default views.
+              </span>
+            </div>
+          )}
+
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-slate-900">
               Extracted Quotes ({quotes.length})
             </h3>
-            <span className="text-sm text-slate-500">
-              {approvedCount} approved
-            </span>
+            <div className="flex items-center gap-3 text-sm text-slate-500">
+              {duplicateCount > 0 && (
+                <span className="text-amber-600">{duplicateCount} duplicate{duplicateCount !== 1 ? 's' : ''}</span>
+              )}
+              <span>{approvedCount} approved</span>
+            </div>
           </div>
 
           <div className="space-y-4 mb-8">
