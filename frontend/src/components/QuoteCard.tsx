@@ -32,11 +32,15 @@ export default function QuoteCard({ data, index, onChange, onDelete }: Props) {
           <PersonTypeahead
             initialName={data.speaker_name}
             selectedPersonId={data.person_id}
+            hasAssignment={!!(data.person_id || data.new_person)}
             onSelect={(personId) =>
               onChange(index, { person_id: personId, new_person: null })
             }
             onCreateNew={(person) =>
               onChange(index, { new_person: person, person_id: null })
+            }
+            onClear={() =>
+              onChange(index, { person_id: null, new_person: null })
             }
           />
           {data.speaker_title && (
@@ -53,7 +57,7 @@ export default function QuoteCard({ data, index, onChange, onDelete }: Props) {
                 : 'bg-red-100 text-red-700 hover:bg-red-200'
             }`}
           >
-            {data.approved ? 'Approve' : 'Exclude'}
+            {data.approved ? 'Approved' : 'Excluded'}
           </button>
           <button
             onClick={() => onDelete(index)}

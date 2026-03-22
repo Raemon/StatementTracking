@@ -7,19 +7,25 @@ interface Props {
   initialName?: string;
   onSelect: (personId: number) => void;
   onCreateNew: (person: PersonCreate) => void;
+  onClear?: () => void;
   selectedPersonId?: number | null;
+  hasAssignment?: boolean;
 }
 
 export default function PersonTypeahead({
   initialName = '',
   onSelect,
   onCreateNew,
+  onClear,
+  hasAssignment = false,
 }: Props) {
   const [query, setQuery] = useState(initialName);
   const [results, setResults] = useState<Person[]>([]);
   const [open, setOpen] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
-  const [selectedName, setSelectedName] = useState<string | null>(null);
+  const [selectedName, setSelectedName] = useState<string | null>(
+    hasAssignment ? initialName : null,
+  );
   const wrapperRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
@@ -35,6 +41,7 @@ export default function PersonTypeahead({
 
   function handleChange(value: string) {
     setQuery(value);
+    if (selectedName) onClear?.();
     setSelectedName(null);
     setShowCreate(false);
 

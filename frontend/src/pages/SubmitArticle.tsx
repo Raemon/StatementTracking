@@ -33,7 +33,9 @@ export default function SubmitArticle() {
           context: q.context,
           approved: true,
           person_id: null,
-          new_person: null,
+          new_person: q.speaker_name
+            ? { name: q.speaker_name, type: 'elected', role: q.speaker_title || null }
+            : null,
         })),
       );
     } catch (err: any) {

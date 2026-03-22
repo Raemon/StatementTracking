@@ -13,7 +13,16 @@ SYSTEM_PROMPT = (
     "politicians, government officials, or their staff members, where the quote "
     "discusses artificial intelligence in any context. For each quote return: the full "
     "quoted text, the name and title of the speaker as identified in the article, and "
-    "one to two sentences of surrounding context. Return a JSON object only, no other "
+    "one to two sentences of surrounding context. "
+    "News articles frequently interrupt a single continuous quote with attribution text "
+    "(e.g. 'said Senator X' or 'she continued'). When a speaker's quoted text is "
+    "interrupted by attribution but resumes in the same paragraph or immediately "
+    "following, treat the full statement as one quote. Reassemble the fragments into a "
+    "single quote_text field, separated by an ellipsis where the attribution "
+    "interruption occurred. Only treat two quotes from the same speaker as separate "
+    "entries if they are clearly distinct statements made at different points in the "
+    "article. "
+    "Return a JSON object only, no other "
     'text. Schema: { "quotes": [{ "speaker_name": string, "speaker_title": string, '
     '"quote_text": string, "context": string }] }'
 )

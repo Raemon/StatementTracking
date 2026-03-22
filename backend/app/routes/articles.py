@@ -65,23 +65,35 @@ def save_article(req: SaveRequest, db: Session = Depends(get_db)):
         db.flush()
 
     saved_count = 0
+    created_people: dict[str, int] = {}
     for q in req.quotes:
         if q.person_id:
             person_id = q.person_id
         elif q.new_person:
-            person = Person(
-                name=q.new_person.name,
-                type=PersonType(q.new_person.type),
-                party=Party(q.new_person.party) if q.new_person.party else None,
-                role=q.new_person.role,
-                chamber=Chamber(q.new_person.chamber) if q.new_person.chamber else None,
-                state=q.new_person.state,
-                employer=q.new_person.employer,
-                notes=q.new_person.notes,
-            )
-            db.add(person)
-            db.flush()
-            person_id = person.id
+            name_key = q.new_person.name.strip().lower()
+            if name_key in created_people:
+                person_id = created_people[name_key]
+            else:
+                existing_person = db.query(Person).filter(
+                    Person.name.ilike(name_key)
+                ).first()
+                if existing_person:
+                    person_id = existing_person.id
+                else:
+                    person = Person(
+                        name=q.new_person.name,
+                        type=PersonType(q.new_person.type),
+                        party=Party(q.new_person.party) if q.new_person.party else None,
+                        role=q.new_person.role,
+                        chamber=Chamber(q.new_person.chamber) if q.new_person.chamber else None,
+                        state=q.new_person.state,
+                        employer=q.new_person.employer,
+                        notes=q.new_person.notes,
+                    )
+                    db.add(person)
+                    db.flush()
+                    person_id = person.id
+                created_people[name_key] = person_id
         else:
             raise HTTPException(
                 status_code=400,
