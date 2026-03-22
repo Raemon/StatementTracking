@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+alembic
+anthropic
+newspaper4k
+lxml_html_clean
+python-dotenv
+pydantic

@@ -1,0 +1,33 @@
+# Environment & secrets (never commit real keys)
+.env
+.env.local
+!.env.example
+
+# Dependencies
+node_modules/
+frontend/node_modules/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+backend/venv/
+
+# Build output
+frontend/dist/
+dist/
+
+# Local database
+*.db
+*.sqlite3
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+
+# Logs
+*.log
+npm-debug.log*
