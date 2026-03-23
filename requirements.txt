@@ -1,0 +1,13 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+alembic
+psycopg2-binary
+anthropic
+newspaper4k
+lxml_html_clean
+httpx
+pypdf
+python-dotenv
+python-multipart
+pydantic
