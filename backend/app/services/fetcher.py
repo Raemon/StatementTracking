@@ -4,7 +4,7 @@ from typing import Optional
 from urllib.parse import urlparse
 
 import httpx
-from newspaper import Article, ArticleException
+from bs4 import BeautifulSoup
 from pypdf import PdfReader
 from pypdf.errors import PdfReadError
 
@@ -48,15 +48,6 @@ def _derive_publication(url: str) -> str:
     if len(parts) >= 2:
         return parts[-2].capitalize()
     return hostname
-
-
-def _parse_publish_date(article: Article) -> Optional[date]:
-    if article.publish_date:
-        if hasattr(article.publish_date, "date"):
-            return article.publish_date.date()
-        if isinstance(article.publish_date, date):
-            return article.publish_date
-    return None
 
 
 class FetchError(Exception):
@@ -143,29 +134,66 @@ def _fetch_pdf_article(url: str) -> dict:
     }
 
 
-def fetch_article(url: str) -> dict:
-    if _is_pdf_url(url):
-        return _fetch_pdf_article(url)
+_USER_AGENT = "StatementTracking/1.0 (+https://github.com/) article-extractor"
 
+
+def _parse_publish_date(soup: BeautifulSoup) -> Optional[date]:
+    for attr in ("article:published_time", "datePublished", "date"):
+        tag = soup.find("meta", property=attr) or soup.find("meta", attrs={"name": attr})
+        if tag and tag.get("content"):
+            raw = tag["content"][:10]
+            try:
+                return date.fromisoformat(raw)
+            except ValueError:
+                continue
+    return None
+
+
+def _fetch_html_article(url: str) -> dict:
+    headers = {"User-Agent": _USER_AGENT, "Accept": "text/html,*/*;q=0.8"}
     try:
-        article = Article(url)
-        article.download()
-        article.parse()
-    except ArticleException as e:
-        raise FetchError(f"Failed to fetch article: {e}")
-    except Exception as e:
-        raise FetchError(f"Unexpected error fetching article: {e}")
+        with httpx.Client(timeout=30.0, follow_redirects=True) as client:
+            response = client.get(url, headers=headers)
+            response.raise_for_status()
+    except httpx.HTTPError as e:
+        raise FetchError(f"Failed to fetch article: {e}") from e
 
-    if not article.text or len(article.text.strip()) < 100:
+    soup = BeautifulSoup(response.text, "html.parser")
+
+    title_tag = soup.find("title")
+    title = title_tag.get_text(strip=True) if title_tag else None
+
+    og_title = soup.find("meta", property="og:title")
+    if og_title and og_title.get("content"):
+        title = og_title["content"]
+
+    published_date = _parse_publish_date(soup)
+
+    for tag in soup(["script", "style", "nav", "header", "footer", "aside",
+                      "form", "iframe", "noscript", "svg"]):
+        tag.decompose()
+
+    main = soup.find("article") or soup.find("main") or soup.find(role="main")
+    source = main if main else soup.body or soup
+
+    text = source.get_text(separator="\n", strip=True)
+
+    if not text or len(text) < 100:
         raise FetchError(
             "Article text is too short or empty — the page may be behind a paywall "
             "or require JavaScript rendering."
         )
 
     return {
-        "title": article.title or None,
-        "text": article.text,
+        "title": title,
+        "text": text,
         "publication": _derive_publication(url),
-        "published_date": _parse_publish_date(article),
+        "published_date": published_date,
         "url": url,
     }
+
+
+def fetch_article(url: str) -> dict:
+    if _is_pdf_url(url):
+        return _fetch_pdf_article(url)
+    return _fetch_html_article(url)

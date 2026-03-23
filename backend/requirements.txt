@@ -4,8 +4,7 @@ sqlalchemy
 alembic
 psycopg2-binary
 anthropic
-newspaper4k
-lxml_html_clean
+beautifulsoup4
 httpx
 pypdf
 python-dotenv
