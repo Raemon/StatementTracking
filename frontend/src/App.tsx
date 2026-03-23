@@ -6,6 +6,7 @@ import SubmitArticle from './pages/SubmitArticle';
 import QuotesBrowser from './pages/QuotesBrowser';
 import People from './pages/People';
 import PersonProfile from './pages/PersonProfile';
+import Admin from './pages/Admin';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -25,6 +26,7 @@ export default function App() {
             <Route path="/quotes" element={<QuotesBrowser />} />
             <Route path="/people" element={<People />} />
             <Route path="/people/:id" element={<PersonProfile />} />
+            <Route path="/admin" element={<Admin />} />
           </Route>
         </Routes>
       </BrowserRouter>

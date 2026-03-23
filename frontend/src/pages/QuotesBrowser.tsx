@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { fetchQuotes, fetchQuote, updateQuote, deleteQuote, type QuoteFilters } from '../api/client';
 import type { QuoteWithDetails } from '../types';
@@ -208,7 +209,17 @@ function QuoteRow({
           {quote.date_said || '—'}
         </td>
         <td className="px-4 py-3 font-medium text-slate-900">
-          {quote.person?.name || 'Unknown'}
+          {quote.person ? (
+            <Link
+              to={`/people/${quote.person.id}`}
+              className="text-blue-600 hover:text-blue-800 hover:underline"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {quote.person.name}
+            </Link>
+          ) : (
+            'Unknown'
+          )}
         </td>
         <td className="px-4 py-3 text-slate-500">
           {quote.person?.role || '—'}
@@ -303,6 +314,18 @@ function QuoteRow({
                 <blockquote className="text-slate-800 leading-relaxed mb-3 italic border-l-4 border-blue-300 pl-4">
                   "{quote.quote_text}"
                 </blockquote>
+                {quote.person && (
+                  <p className="text-sm text-slate-600 mb-3">
+                    <span className="font-medium text-slate-500">Speaker</span>{' '}
+                    <Link
+                      to={`/people/${quote.person.id}`}
+                      className="text-blue-600 hover:text-blue-800 font-medium hover:underline"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {quote.person.name}
+                    </Link>
+                  </p>
+                )}
                 {quote.is_duplicate && originalQuote && (
                   <div className="mb-3 px-3 py-2.5 bg-amber-50 border border-amber-200 rounded-lg text-sm">
                     <p className="text-amber-800 font-medium text-xs uppercase tracking-wider mb-1.5">

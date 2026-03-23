@@ -17,11 +17,19 @@ export interface QuoteCardData {
 interface Props {
   data: QuoteCardData;
   index: number;
+  /** New speakers created elsewhere on this submit page (search merges these in). */
+  pendingSpeakers?: PersonCreate[];
   onChange: (index: number, updated: Partial<QuoteCardData>) => void;
   onDelete: (index: number) => void;
 }
 
-export default function QuoteCard({ data, index, onChange, onDelete }: Props) {
+export default function QuoteCard({
+  data,
+  index,
+  pendingSpeakers = [],
+  onChange,
+  onDelete,
+}: Props) {
   const isDup = !!data.duplicate_match;
 
   return (
@@ -37,8 +45,9 @@ export default function QuoteCard({ data, index, onChange, onDelete }: Props) {
       <div className="flex items-start justify-between mb-3">
         <div className="flex-1 mr-4">
           <PersonTypeahead
-            initialName={data.speaker_name}
+            initialName={data.new_person?.name ?? data.speaker_name}
             defaultType={data.speaker_type || undefined}
+            pendingSpeakers={pendingSpeakers}
             selectedPersonId={data.person_id}
             hasAssignment={!!(data.person_id || data.new_person)}
             onSelect={(personId) =>

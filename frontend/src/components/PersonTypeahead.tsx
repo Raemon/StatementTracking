@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { fetchPeople } from '../api/client';
 import type { Person, PersonCreate, SpeakerType } from '../types';
 import InlinePersonForm from './InlinePersonForm';
@@ -6,6 +6,8 @@ import InlinePersonForm from './InlinePersonForm';
 interface Props {
   initialName?: string;
   defaultType?: SpeakerType;
+  /** Speakers created on this submit session (not in DB yet); shown as "On this page". */
+  pendingSpeakers?: PersonCreate[];
   onSelect: (personId: number) => void;
   onCreateNew: (person: PersonCreate) => void;
   onClear?: () => void;
@@ -16,6 +18,7 @@ interface Props {
 export default function PersonTypeahead({
   initialName = '',
   defaultType,
+  pendingSpeakers = [],
   onSelect,
   onCreateNew,
   onClear,
@@ -30,6 +33,17 @@ export default function PersonTypeahead({
   );
   const wrapperRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  const pendingMatches = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (q.length < 2) return [];
+    return pendingSpeakers.filter((p) => p.name.toLowerCase().includes(q));
+  }, [query, pendingSpeakers]);
+
+  const pendingWithoutApiDupes = useMemo(() => {
+    const apiNames = new Set(results.map((r) => r.name.trim().toLowerCase()));
+    return pendingMatches.filter((p) => !apiNames.has(p.name.trim().toLowerCase()));
+  }, [pendingMatches, results]);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -59,9 +73,11 @@ export default function PersonTypeahead({
       try {
         const people = await fetchPeople(value);
         setResults(people);
+        // Always keep the menu open after a search (2+ chars) so "No matches" + Create new speaker stay available.
         setOpen(true);
       } catch (_) {
         setResults([]);
+        setOpen(true);
       }
     }, 250);
   }
@@ -72,6 +88,14 @@ export default function PersonTypeahead({
     setOpen(false);
     setShowCreate(false);
     onSelect(person.id);
+  }
+
+  function handleSelectPending(person: PersonCreate) {
+    setQuery(person.name);
+    setSelectedName(person.name);
+    setOpen(false);
+    setShowCreate(false);
+    onCreateNew(person);
   }
 
   function handleCreateNew(person: PersonCreate) {
@@ -87,7 +111,14 @@ export default function PersonTypeahead({
         type="text"
         value={query}
         onChange={(e) => handleChange(e.target.value)}
-        onFocus={() => { if (results.length > 0 && !selectedName) setOpen(true); }}
+        onFocus={() => {
+          if (
+            !selectedName &&
+            (results.length > 0 || pendingMatches.length > 0)
+          ) {
+            setOpen(true);
+          }
+        }}
         placeholder="Search speakers..."
         className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
       />
@@ -97,9 +128,28 @@ export default function PersonTypeahead({
 
       {open && (
         <div className="absolute z-20 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-auto">
+          {pendingWithoutApiDupes.length > 0 && (
+            <>
+              <div className="px-3 py-1.5 text-xs font-medium text-slate-400 bg-slate-50 border-b border-slate-100">
+                On this page
+              </div>
+              {pendingWithoutApiDupes.map((p) => (
+                <button
+                  key={p.name.trim().toLowerCase()}
+                  type="button"
+                  onClick={() => handleSelectPending(p)}
+                  className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 flex justify-between items-center"
+                >
+                  <span className="font-medium">{p.name}</span>
+                  <span className="text-xs text-slate-400">{p.type}</span>
+                </button>
+              ))}
+            </>
+          )}
           {results.map((p) => (
             <button
               key={p.id}
+              type="button"
               onClick={() => handleSelect(p)}
               className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 flex justify-between items-center"
             >
@@ -109,7 +159,9 @@ export default function PersonTypeahead({
               </span>
             </button>
           ))}
-          {results.length === 0 && query.trim().length >= 2 && (
+          {results.length === 0 &&
+            pendingWithoutApiDupes.length === 0 &&
+            query.trim().length >= 2 && (
             <div className="px-3 py-2 text-sm text-slate-500">No matches found</div>
           )}
           <button

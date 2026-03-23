@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .routes import articles, people, quotes, stats
+from .routes import admin, articles, people, quotes, stats
 
 app = FastAPI(title="AI Quote Tracker", version="1.0.0")
 
@@ -13,6 +13,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(admin.router)
 app.include_router(articles.router)
 app.include_router(people.router)
 app.include_router(quotes.router)

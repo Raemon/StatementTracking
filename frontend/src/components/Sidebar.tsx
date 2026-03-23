@@ -5,6 +5,7 @@ const links = [
   { to: '/submit', label: 'Submit Article', icon: '＋' },
   { to: '/quotes', label: 'Quotes', icon: '❝' },
   { to: '/people', label: 'Speakers', icon: '◉' },
+  { to: '/admin', label: 'Admin', icon: '⚙' },
 ];
 
 export default function Sidebar() {

@@ -1,9 +1,39 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { extractArticle, saveArticle, checkDuplicates } from '../api/client';
-import type { ArticleMetadata, QuoteSaveItem } from '../types';
+import type { ArticleMetadata, PersonCreate, QuoteSaveItem } from '../types';
 import QuoteCard, { type QuoteCardData } from '../components/QuoteCard';
 
+type SubmitMode = 'extract' | 'manual';
+
+/** Deduped new speakers from any quote on this page so every card can attach the same person. */
+function collectPendingSpeakers(quotes: QuoteCardData[]): PersonCreate[] {
+  const map = new Map<string, PersonCreate>();
+  for (const q of quotes) {
+    if (q.new_person) {
+      const key = q.new_person.name.trim().toLowerCase();
+      if (!map.has(key)) map.set(key, q.new_person);
+    }
+  }
+  return [...map.values()];
+}
+
+function blankQuoteCard(): QuoteCardData {
+  return {
+    speaker_name: '',
+    speaker_title: null,
+    speaker_type: 'elected',
+    quote_text: '',
+    context: null,
+    approved: true,
+    person_id: null,
+    new_person: null,
+    duplicate_match: null,
+    mark_as_duplicate: false,
+  };
+}
+
 export default function SubmitArticle() {
+  const [mode, setMode] = useState<SubmitMode>('extract');
   const [url, setUrl] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -11,6 +41,23 @@ export default function SubmitArticle() {
   const [quotes, setQuotes] = useState<QuoteCardData[]>([]);
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
+
+  function switchMode(newMode: SubmitMode) {
+    setMode(newMode);
+    setUrl('');
+    setArticle(null);
+    setQuotes([]);
+    setError(null);
+    setSuccess(null);
+    if (newMode === 'manual') {
+      setArticle({ title: null, publication: null, published_date: null, url: '' });
+      setQuotes([blankQuoteCard()]);
+    }
+  }
+
+  function addQuote() {
+    setQuotes((prev) => [...prev, blankQuoteCard()]);
+  }
 
   async function handleExtract(e: React.FormEvent) {
     e.preventDefault();
@@ -79,13 +126,27 @@ export default function SubmitArticle() {
 
   function updateArticle(field: string, value: string) {
     if (!article) return;
-    setArticle({ ...article, [field]: value || null });
+    setArticle({ ...article, [field]: field === 'url' ? value : value || null });
   }
 
   async function handleSave() {
     if (!article) return;
 
+    if (!article.url.trim()) {
+      setError('Article URL is required.');
+      return;
+    }
+
     const approved = quotes.filter((q) => q.approved);
+
+    const empty = approved.filter((q) => !q.quote_text.trim());
+    if (empty.length > 0) {
+      setError(
+        `${empty.length} approved quote(s) have no text. Fill them in or exclude them.`,
+      );
+      return;
+    }
+
     const missing = approved.filter((q) => !q.person_id && !q.new_person);
     if (missing.length > 0) {
       setError(
@@ -115,9 +176,14 @@ export default function SubmitArticle() {
         ? ` (${res.duplicate_count} marked as duplicate${res.duplicate_count !== 1 ? 's' : ''} and hidden from default views)`
         : '';
       setSuccess(`Saved ${res.quote_count} quote(s) from this article${dupMsg}.`);
-      setArticle(null);
-      setQuotes([]);
       setUrl('');
+      if (mode === 'manual') {
+        setArticle({ title: null, publication: null, published_date: null, url: '' });
+        setQuotes([blankQuoteCard()]);
+      } else {
+        setArticle(null);
+        setQuotes([]);
+      }
     } catch (err: any) {
       setError(err.message || 'Failed to save quotes.');
     } finally {
@@ -127,13 +193,37 @@ export default function SubmitArticle() {
 
   const approvedCount = quotes.filter((q) => q.approved).length;
   const duplicateCount = quotes.filter((q) => q.duplicate_match).length;
+  const pendingSpeakers = useMemo(() => collectPendingSpeakers(quotes), [quotes]);
 
   return (
     <div>
-      <h2 className="text-2xl font-bold text-slate-900 mb-1">Submit Article</h2>
+      <h2 className="text-2xl font-bold text-slate-900 mb-1">Submit Quotes</h2>
       <p className="text-sm text-slate-500 mb-6">
-        Paste a news article URL to extract AI-related quotes.
+        Extract quotes from a web or PDF URL, or add them manually.
       </p>
+
+      <div className="flex gap-1 mb-6 p-1 bg-slate-100 rounded-lg w-fit">
+        <button
+          onClick={() => switchMode('extract')}
+          className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+            mode === 'extract'
+              ? 'bg-white text-slate-900 shadow-sm'
+              : 'text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          Extract from URL
+        </button>
+        <button
+          onClick={() => switchMode('manual')}
+          className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+            mode === 'manual'
+              ? 'bg-white text-slate-900 shadow-sm'
+              : 'text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          Manual Entry
+        </button>
+      </div>
 
       {error && (
         <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
@@ -147,23 +237,25 @@ export default function SubmitArticle() {
         </div>
       )}
 
-      <form onSubmit={handleExtract} className="flex gap-3 mb-8">
-        <input
-          type="url"
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          placeholder="https://example.com/article..."
-          required
-          className="flex-1 px-4 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-        />
-        <button
-          type="submit"
-          disabled={loading}
-          className="px-6 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          {loading ? 'Extracting...' : 'Extract Quotes'}
-        </button>
-      </form>
+      {mode === 'extract' && (
+        <form onSubmit={handleExtract} className="flex gap-3 mb-8">
+          <input
+            type="url"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder="https://example.com/article or …/report.pdf"
+            required
+            className="flex-1 px-4 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+          <button
+            type="submit"
+            disabled={loading}
+            className="px-6 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {loading ? 'Extracting...' : 'Extract Quotes'}
+          </button>
+        </form>
+      )}
 
       {loading && (
         <div className="text-center py-12">
@@ -218,7 +310,17 @@ export default function SubmitArticle() {
                 <label className="block text-xs font-medium text-slate-500 mb-1">
                   URL
                 </label>
-                <p className="text-sm text-slate-600 truncate">{article.url}</p>
+                {mode === 'manual' ? (
+                  <input
+                    type="url"
+                    value={article.url}
+                    onChange={(e) => updateArticle('url', e.target.value)}
+                    placeholder="https://example.com/article or …/report.pdf"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                  />
+                ) : (
+                  <p className="text-sm text-slate-600 truncate">{article.url}</p>
+                )}
               </div>
             </div>
           </div>
@@ -239,7 +341,7 @@ export default function SubmitArticle() {
 
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-slate-900">
-              Extracted Quotes ({quotes.length})
+              {mode === 'manual' ? 'Quotes' : 'Extracted Quotes'} ({quotes.length})
             </h3>
             <div className="flex items-center gap-3 text-sm text-slate-500">
               {duplicateCount > 0 && (
@@ -249,17 +351,29 @@ export default function SubmitArticle() {
             </div>
           </div>
 
-          <div className="space-y-4 mb-8">
+          <div className="space-y-4 mb-4">
             {quotes.map((q, i) => (
               <QuoteCard
                 key={i}
                 data={q}
                 index={i}
+                pendingSpeakers={pendingSpeakers}
                 onChange={handleQuoteChange}
                 onDelete={handleQuoteDelete}
               />
             ))}
           </div>
+
+          <button
+            type="button"
+            onClick={addQuote}
+            className="w-full py-3 border-2 border-dashed border-slate-300 rounded-xl text-sm font-medium text-slate-500 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50/50 transition-colors mb-8 flex items-center justify-center gap-2"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+            </svg>
+            Add Quote
+          </button>
 
           {quotes.length > 0 && (
             <div className="sticky bottom-0 bg-slate-50/80 backdrop-blur-sm py-4 border-t border-slate-200 -mx-6 px-6">

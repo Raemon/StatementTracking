@@ -1,8 +1,12 @@
+import io
 from datetime import date
 from typing import Optional
 from urllib.parse import urlparse
 
+import httpx
 from newspaper import Article, ArticleException
+from pypdf import PdfReader
+from pypdf.errors import PdfReadError
 
 PUBLICATION_LOOKUP = {
     "nytimes.com": "The New York Times",
@@ -59,7 +63,90 @@ class FetchError(Exception):
     pass
 
 
+def _is_pdf_url(url: str) -> bool:
+    try:
+        path = (urlparse(url.strip()).path or "").lower()
+    except Exception:
+        return False
+    if not path:
+        return False
+    return path.rsplit("/", 1)[-1].endswith(".pdf")
+
+
+def _pdf_metadata_title(reader: PdfReader) -> Optional[str]:
+    meta = reader.metadata
+    if not meta:
+        return None
+    title = getattr(meta, "title", None)
+    if title:
+        return str(title).strip() or None
+    if hasattr(meta, "get"):
+        raw = meta.get("/Title")
+        if raw:
+            return str(raw).strip() or None
+    return None
+
+
+def _fetch_pdf_article(url: str) -> dict:
+    headers = {
+        "User-Agent": (
+            "StatementTracking/1.0 (+https://github.com/) article-extractor"
+        ),
+        "Accept": "application/pdf,*/*;q=0.8",
+    }
+    try:
+        with httpx.Client(timeout=60.0, follow_redirects=True) as client:
+            response = client.get(url, headers=headers)
+            response.raise_for_status()
+            data = response.content
+    except httpx.HTTPError as e:
+        raise FetchError(f"Failed to download PDF: {e}") from e
+
+    if len(data) < 5 or not data[:5].startswith(b"%PDF-"):
+        raise FetchError(
+            "The URL did not return a valid PDF file (missing %PDF header)."
+        )
+
+    try:
+        reader = PdfReader(io.BytesIO(data))
+    except PdfReadError as e:
+        raise FetchError(f"Could not read PDF: {e}") from e
+
+    if getattr(reader, "is_encrypted", False):
+        raise FetchError(
+            "PDF is password-protected or encrypted and cannot be extracted."
+        )
+
+    text_parts: list[str] = []
+    for page in reader.pages:
+        try:
+            text_parts.append(page.extract_text() or "")
+        except Exception as e:
+            raise FetchError(f"Failed to extract text from PDF page: {e}") from e
+
+    text = "\n".join(text_parts).strip()
+
+    if not text or len(text) < 100:
+        raise FetchError(
+            "Extracted PDF text is too short or empty — the file may be "
+            "image-only (scanned) or protected."
+        )
+
+    title = _pdf_metadata_title(reader)
+
+    return {
+        "title": title,
+        "text": text,
+        "publication": _derive_publication(url),
+        "published_date": None,
+        "url": url,
+    }
+
+
 def fetch_article(url: str) -> dict:
+    if _is_pdf_url(url):
+        return _fetch_pdf_article(url)
+
     try:
         article = Article(url)
         article.download()

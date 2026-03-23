@@ -121,3 +121,26 @@ export function checkDuplicates(
 export function fetchStats(): Promise<Stats> {
   return request('/stats');
 }
+
+// ── Admin ────────────────────────────────────────────────────────────
+
+export async function exportDatabase(): Promise<Blob> {
+  const res = await fetch(`${BASE}/admin/export`);
+  if (!res.ok) throw new Error(`Export failed: ${res.status}`);
+  return res.blob();
+}
+
+export async function importDatabase(file: File): Promise<{ ok: boolean; imported: { people: number; articles: number; quotes: number } }> {
+  const form = new FormData();
+  form.append('file', file);
+  const res = await fetch(`${BASE}/admin/import`, { method: 'POST', body: form });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.detail || `Import failed: ${res.status}`);
+  }
+  return res.json();
+}
+
+export function clearDatabase(): Promise<{ ok: boolean; deleted: { people: number; articles: number; quotes: number } }> {
+  return request('/admin/clear', { method: 'POST' });
+}
