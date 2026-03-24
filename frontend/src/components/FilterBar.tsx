@@ -264,6 +264,40 @@ export default function FilterBar({ filters, onChange, jurisdictions, topics }: 
         />
       </div>
 
+      <div className="flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2.5 py-1">
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 shrink-0">Sort</span>
+        <select
+          value={filters.sort_by || ''}
+          onChange={(e) =>
+            onChange({
+              ...filters,
+              sort_by: (e.target.value || undefined) as QuoteFilters['sort_by'],
+              sort_dir: e.target.value ? (filters.sort_dir || 'desc') : undefined,
+              page: 1,
+            })
+          }
+          className="px-2 py-1 border border-slate-200 rounded text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="">Date Added</option>
+          <option value="date_said">Date Spoken</option>
+          <option value="speaker">Speaker</option>
+        </select>
+        <button
+          type="button"
+          onClick={() =>
+            onChange({
+              ...filters,
+              sort_dir: (filters.sort_dir || 'desc') === 'desc' ? 'asc' : 'desc',
+              page: 1,
+            })
+          }
+          className="px-1.5 py-1 text-sm text-slate-500 hover:text-slate-800 transition"
+          title={`Currently: ${(filters.sort_dir || 'desc') === 'desc' ? 'Newest first' : 'Oldest first'}`}
+        >
+          {(filters.sort_dir || 'desc') === 'desc' ? '↓' : '↑'}
+        </button>
+      </div>
+
       <label className="flex items-center gap-2 px-3 py-2 cursor-pointer select-none">
         <input
           type="checkbox"

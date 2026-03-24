@@ -193,6 +193,49 @@ export default function QuotesBrowser() {
 }
 
 /* ═══════════════════════════════════════════════════════════════════
+   SORTABLE TABLE HEADER — used by Classic view
+   ═══════════════════════════════════════════════════════════════════ */
+
+function SortableHeader({
+  label,
+  sortKey,
+  currentSort,
+  currentDir,
+  onSort,
+  className = '',
+}: {
+  label: string;
+  sortKey: string;
+  currentSort?: string;
+  currentDir?: string;
+  onSort: (key: string, dir: string) => void;
+  className?: string;
+}) {
+  const isActive = currentSort === sortKey || (!currentSort && sortKey === 'created_at');
+  const dir = isActive ? (currentDir || 'desc') : 'desc';
+
+  return (
+    <th
+      className={`text-left px-4 py-3 font-medium cursor-pointer select-none hover:bg-slate-100 transition-colors ${className}`}
+      onClick={() => {
+        if (isActive) {
+          onSort(sortKey, dir === 'desc' ? 'asc' : 'desc');
+        } else {
+          onSort(sortKey, 'desc');
+        }
+      }}
+    >
+      <span className="inline-flex items-center gap-1">
+        {label}
+        <span className={`text-[10px] ${isActive ? 'opacity-100' : 'opacity-0'}`}>
+          {dir === 'desc' ? '▼' : '▲'}
+        </span>
+      </span>
+    </th>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════
    VARIANT SWITCHER — Floating pill in bottom-right
    ═══════════════════════════════════════════════════════════════════ */
 
@@ -1172,15 +1215,30 @@ function ClassicView({
             <table className="w-full text-sm table-fixed">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50">
-                  <th className="text-left px-4 py-3 font-medium text-blue-500 w-[100px]">
-                    Spoken
-                  </th>
-                  <th className="text-left px-4 py-3 font-medium text-amber-500 w-[100px]">
-                    Added
-                  </th>
-                  <th className="text-left px-4 py-3 font-medium text-slate-500 w-[120px]">
-                    Speaker
-                  </th>
+                  <SortableHeader
+                    label="Spoken"
+                    sortKey="date_said"
+                    currentSort={filters.sort_by}
+                    currentDir={filters.sort_dir}
+                    onSort={(key, dir) => setFilters({ ...filters, sort_by: key as QuoteFilters['sort_by'], sort_dir: dir as QuoteFilters['sort_dir'], page: 1 })}
+                    className="text-blue-500 w-[100px]"
+                  />
+                  <SortableHeader
+                    label="Added"
+                    sortKey="created_at"
+                    currentSort={filters.sort_by}
+                    currentDir={filters.sort_dir}
+                    onSort={(key, dir) => setFilters({ ...filters, sort_by: key as QuoteFilters['sort_by'], sort_dir: dir as QuoteFilters['sort_dir'], page: 1 })}
+                    className="text-amber-500 w-[100px]"
+                  />
+                  <SortableHeader
+                    label="Speaker"
+                    sortKey="speaker"
+                    currentSort={filters.sort_by}
+                    currentDir={filters.sort_dir}
+                    onSort={(key, dir) => setFilters({ ...filters, sort_by: key as QuoteFilters['sort_by'], sort_dir: dir as QuoteFilters['sort_dir'], page: 1 })}
+                    className="text-slate-500 w-[120px]"
+                  />
                   <th className="text-left px-4 py-3 font-medium text-slate-500 w-[150px]">
                     Role
                   </th>

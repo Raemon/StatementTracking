@@ -62,6 +62,13 @@ def check_duplicates(
     return {"results": results}
 
 
+SORT_COLUMNS = {
+    "date_said": Quote.date_said,
+    "created_at": Quote.created_at,
+    "speaker": None,  # handled separately via Person.name
+}
+
+
 @router.get("")
 def list_quotes(
     person_id: Optional[int] = None,
@@ -75,10 +82,14 @@ def list_quotes(
     jurisdiction_ids: Optional[list[int]] = Query(None),
     topic_ids: Optional[list[int]] = Query(None),
     include_duplicates: bool = Query(False),
+    sort_by: Optional[str] = Query(None),
+    sort_dir: Optional[str] = Query(None),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
     db: Session = Depends(get_db),
 ):
+    joined_person = False
+
     query = (
         db.query(Quote)
         .options(
@@ -96,9 +107,11 @@ def list_quotes(
         query = query.filter(Quote.quote_text.ilike(f"%{search}%"))
     if party:
         query = query.join(Person).filter(Person.party == party)
+        joined_person = True
     if type:
-        if not party:
+        if not joined_person:
             query = query.join(Person)
+            joined_person = True
         query = query.filter(Person.type == type)
     if from_date:
         query = query.filter(Quote.date_said >= from_date)
@@ -127,8 +140,20 @@ def list_quotes(
 
     total = query.count()
 
+    asc = (sort_dir or "desc").lower() == "asc"
+    if sort_by == "speaker":
+        if not joined_person:
+            query = query.outerjoin(Person)
+        col = Person.name
+        order = col.asc().nullslast() if asc else col.desc().nullslast()
+    elif sort_by in SORT_COLUMNS and SORT_COLUMNS[sort_by] is not None:
+        col = SORT_COLUMNS[sort_by]
+        order = col.asc().nullslast() if asc else col.desc().nullslast()
+    else:
+        order = Quote.created_at.desc()
+
     quotes = (
-        query.order_by(Quote.created_at.desc())
+        query.order_by(order)
         .offset((page - 1) * page_size)
         .limit(page_size)
         .all()
