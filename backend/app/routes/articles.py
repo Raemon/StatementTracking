@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+import difflib
+import logging
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -12,12 +16,19 @@ from ..schemas import (
     ArticleMetadata,
     SaveRequest,
     SaveResponse,
+    BulkEntryRequest,
+    BulkEntryResult,
+    BulkUnmatchedQuote,
+    CheckUrlsRequest,
+    CheckUrlsResponse,
 )
 from ..services.fetcher import fetch_article, FetchError
 from ..services.extractor import extract_quotes, ExtractionError
 from ..services.dedup import find_duplicate, check_duplicates_batch
 from ..services.jurisdiction_quote import set_quote_jurisdictions
 from ..services.topic_quote import set_quote_topics
+
+logger = logging.getLogger(__name__)
 
 
 def _jurisdiction_prompt_block(db: Session) -> str:
@@ -173,3 +184,178 @@ def save_article(req: SaveRequest, db: Session = Depends(get_db)):
         quote_count=saved_count,
         duplicate_count=duplicate_count,
     )
+
+
+@router.post("/check-urls", response_model=CheckUrlsResponse)
+def check_existing_urls(req: CheckUrlsRequest, db: Session = Depends(get_db)):
+    """Return the subset of submitted URLs that already have an Article row."""
+    if not req.urls:
+        return CheckUrlsResponse(existing_urls=[])
+    existing = (
+        db.query(Article.url)
+        .filter(Article.url.in_(req.urls))
+        .all()
+    )
+    return CheckUrlsResponse(existing_urls=[row[0] for row in existing])
+
+
+# ── Bulk processing ─────────────────────────────────────────────────────
+
+_FUZZY_THRESHOLD = 0.80
+_VALID_SPEAKER_TYPES = {t.value for t in SpeakerType}
+
+
+def _resolve_person(db: Session, name: str, speaker_type: str | None, cache: dict[str, int]) -> int:
+    """Look up a Person by name or create one. Uses *cache* to avoid
+    redundant DB hits within a single request."""
+    name_key = name.strip().lower()
+    if name_key in cache:
+        return cache[name_key]
+
+    existing = db.query(Person).filter(Person.name.ilike(name_key)).first()
+    if existing:
+        cache[name_key] = existing.id
+        return existing.id
+
+    st = speaker_type if speaker_type in _VALID_SPEAKER_TYPES else "elected"
+    person = Person(name=name, type=SpeakerType(st))
+    db.add(person)
+    db.flush()
+    cache[name_key] = person.id
+    return person.id
+
+
+def _save_bulk_quotes(
+    db: Session,
+    article_data: dict,
+    raw_quotes: list[dict],
+    extracted: list[ExtractedQuote],
+) -> int:
+    """Persist article + quotes and return the number of saved quotes."""
+    existing_article = db.query(Article).filter(Article.url == article_data["url"]).first()
+    if existing_article:
+        article = existing_article
+    else:
+        article = Article(
+            url=article_data["url"],
+            title=article_data["title"],
+            publication=article_data["publication"],
+            published_date=article_data["published_date"],
+        )
+        db.add(article)
+        db.flush()
+
+    person_cache: dict[str, int] = {}
+    saved = 0
+    for eq in extracted:
+        person_id = _resolve_person(db, eq.speaker_name, eq.speaker_type, person_cache)
+        quote = Quote(
+            person_id=person_id,
+            article_id=article.id,
+            quote_text=eq.quote_text,
+            context=eq.context,
+            date_recorded=date.today(),
+        )
+        db.add(quote)
+        db.flush()
+        set_quote_jurisdictions(db, quote, eq.jurisdictions or None)
+        set_quote_topics(db, quote, eq.topics or None)
+        saved += 1
+
+    db.commit()
+    return saved
+
+
+def _fuzzy_match(expected: str, candidates: list[str], threshold: float = _FUZZY_THRESHOLD) -> bool:
+    """Return True if *expected* is substantially present in any candidate."""
+    exp_lower = expected.lower()
+    for cand in candidates:
+        ratio = difflib.SequenceMatcher(None, exp_lower, cand.lower()).ratio()
+        if ratio >= threshold:
+            return True
+    return False
+
+
+@router.post("/bulk-process-entry", response_model=BulkEntryResult)
+def bulk_process_entry(req: BulkEntryRequest, db: Session = Depends(get_db)):
+    # 1. Fetch
+    try:
+        article_data = fetch_article(req.url)
+    except FetchError as e:
+        logger.warning("Bulk fetch error for %s: %s", req.url, e)
+        unmatched = [
+            BulkUnmatchedQuote(expected_quote=q, reason="fetch_error")
+            for q in req.expected_quotes
+        ] if req.expected_quotes else [
+            BulkUnmatchedQuote(expected_quote="", reason="fetch_error")
+        ]
+        return BulkEntryResult(status="error", unmatched_quotes=unmatched, error=str(e))
+
+    # 2. Extract
+    block = _jurisdiction_prompt_block(db)
+    topic_block = _topic_prompt_block(db)
+    try:
+        raw_quotes = extract_quotes(
+            article_data["text"],
+            block,
+            topic_block,
+            source_type=article_data.get("source_type", "article"),
+        )
+    except ExtractionError as e:
+        logger.warning("Bulk extraction error for %s: %s", req.url, e)
+        unmatched = [
+            BulkUnmatchedQuote(expected_quote=q, reason="extraction_error")
+            for q in req.expected_quotes
+        ] if req.expected_quotes else [
+            BulkUnmatchedQuote(expected_quote="", reason="extraction_error")
+        ]
+        return BulkEntryResult(status="error", unmatched_quotes=unmatched, error=str(e))
+
+    extracted = [
+        ExtractedQuote(
+            speaker_name=q.get("speaker_name", "Unknown"),
+            speaker_title=q.get("speaker_title"),
+            speaker_type=q.get("speaker_type"),
+            quote_text=q.get("quote_text", ""),
+            context=q.get("context"),
+            jurisdictions=_as_jurisdiction_list(q.get("jurisdictions")),
+            topics=_as_jurisdiction_list(q.get("topics")),
+        )
+        for q in raw_quotes
+    ]
+    extracted_texts = [eq.quote_text for eq in extracted]
+
+    article_meta = ArticleMetadata(
+        title=article_data["title"],
+        publication=article_data["publication"],
+        published_date=article_data["published_date"],
+        url=article_data["url"],
+    )
+
+    # 3. No expected quotes → pending (skip auto-approval)
+    if not req.expected_quotes:
+        return BulkEntryResult(
+            status="pending",
+            extracted_count=len(extracted),
+            article=article_meta,
+            extracted_quotes=extracted,
+        )
+
+    # 4. Fuzzy-match each expected quote
+    unmatched: list[BulkUnmatchedQuote] = []
+    for exp_q in req.expected_quotes:
+        if not _fuzzy_match(exp_q, extracted_texts):
+            unmatched.append(BulkUnmatchedQuote(expected_quote=exp_q, reason="quote_not_found"))
+
+    if unmatched:
+        return BulkEntryResult(
+            status="pending",
+            extracted_count=len(extracted),
+            unmatched_quotes=unmatched,
+            article=article_meta,
+            extracted_quotes=extracted,
+        )
+
+    # 5. All matched → save
+    saved = _save_bulk_quotes(db, article_data, raw_quotes, extracted)
+    return BulkEntryResult(status="approved", saved_count=saved, extracted_count=len(extracted))

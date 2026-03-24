@@ -1,4 +1,6 @@
 import type {
+  ArticleMetadata,
+  ExtractedQuote,
   ExtractResponse,
   SaveRequest,
   SaveResponse,
@@ -148,6 +150,49 @@ export function checkDuplicates(
   return request('/quotes/check-duplicates', {
     method: 'POST',
     body: JSON.stringify({ items }),
+  });
+}
+
+// ── Bulk Submit ─────────────────────────────────────────────────────
+
+export interface BulkEntry {
+  speaker: string;
+  url: string;
+  source_description: string;
+  quotes: string[];
+}
+
+export interface BulkUnmatchedQuote {
+  expected_quote: string;
+  reason: string;
+}
+
+export interface BulkEntryResult {
+  status: 'approved' | 'pending' | 'error' | 'skipped';
+  saved_count: number;
+  extracted_count: number;
+  unmatched_quotes: BulkUnmatchedQuote[];
+  error?: string;
+  article?: ArticleMetadata | null;
+  extracted_quotes?: ExtractedQuote[];
+}
+
+export function checkExistingUrls(urls: string[]): Promise<{ existing_urls: string[] }> {
+  return request('/articles/check-urls', {
+    method: 'POST',
+    body: JSON.stringify({ urls }),
+  });
+}
+
+export function bulkProcessEntry(entry: BulkEntry): Promise<BulkEntryResult> {
+  return request('/articles/bulk-process-entry', {
+    method: 'POST',
+    body: JSON.stringify({
+      url: entry.url,
+      speaker: entry.speaker,
+      source_description: entry.source_description,
+      expected_quotes: entry.quotes,
+    }),
   });
 }
 

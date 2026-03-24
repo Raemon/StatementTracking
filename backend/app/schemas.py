@@ -161,6 +161,40 @@ class QuoteListResponse(BaseModel):
     page_size: int
 
 
+# ── Bulk Submit ─────────────────────────────────────────────────────────
+
+class BulkEntryRequest(BaseModel):
+    url: str
+    speaker: str
+    source_description: str
+    expected_quotes: List[str] = Field(default_factory=list)
+
+
+class BulkUnmatchedQuote(BaseModel):
+    expected_quote: str
+    reason: str
+
+
+class BulkEntryResult(BaseModel):
+    status: str
+    saved_count: int = 0
+    extracted_count: int = 0
+    unmatched_quotes: List[BulkUnmatchedQuote] = Field(default_factory=list)
+    error: Optional[str] = None
+    article: Optional[ArticleMetadata] = None
+    extracted_quotes: List[ExtractedQuote] = Field(default_factory=list)
+
+
+# ── URL existence check ─────────────────────────────────────────────────
+
+class CheckUrlsRequest(BaseModel):
+    urls: List[str]
+
+
+class CheckUrlsResponse(BaseModel):
+    existing_urls: List[str]
+
+
 # ── Stats ───────────────────────────────────────────────────────────────
 
 class PartyCount(BaseModel):

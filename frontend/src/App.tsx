@@ -7,6 +7,7 @@ import QuotesBrowser from './pages/QuotesBrowser';
 import People from './pages/People';
 import PersonProfile from './pages/PersonProfile';
 import Admin from './pages/Admin';
+import BulkSubmit from './pages/BulkSubmit';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -26,6 +27,7 @@ export default function App() {
             <Route path="/quotes" element={<QuotesBrowser />} />
             <Route path="/people" element={<People />} />
             <Route path="/people/:id" element={<PersonProfile />} />
+            <Route path="/bulk-submit" element={<BulkSubmit />} />
             <Route path="/admin" element={<Admin />} />
           </Route>
         </Routes>
