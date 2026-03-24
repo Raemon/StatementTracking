@@ -1,21 +1,92 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchQuotes, fetchQuote, fetchJurisdictions, updateQuote, deleteQuote, type QuoteFilters } from '../api/client';
-import type { JurisdictionRow, QuoteWithDetails } from '../types';
+import {
+  fetchQuotes,
+  fetchQuote,
+  fetchJurisdictions,
+  updateQuote,
+  deleteQuote,
+  type QuoteFilters,
+} from '../api/client';
+import type { JurisdictionRow, QuoteWithDetails, QuoteListResponse } from '../types';
 import FilterBar from '../components/FilterBar';
+
+type VariantKey = '0' | '1' | '3';
+
+interface EditFormState {
+  quote_text: string;
+  date_said: string;
+  date_recorded: string;
+  jurisdiction_names: string[];
+}
+
+interface ViewProps {
+  filters: QuoteFilters;
+  setFilters: (f: QuoteFilters) => void;
+  data: QuoteListResponse | undefined;
+  isLoading: boolean;
+  error: Error | null;
+  jurisdictionOptions: JurisdictionRow[];
+  expanded: number | null;
+  setExpanded: (id: number | null) => void;
+  editing: number | null;
+  startEdit: (q: QuoteWithDetails) => void;
+  cancelEdit: () => void;
+  saveEdit: (id: number) => void;
+  editForm: EditFormState;
+  setEditForm: (f: EditFormState) => void;
+  onDelete: (id: number) => void;
+  totalPages: number;
+}
+
+interface QuoteItemProps {
+  quote: QuoteWithDetails;
+  index: number;
+  isExpanded: boolean;
+  isEditing: boolean;
+  editForm: EditFormState;
+  setEditForm: (f: EditFormState) => void;
+  jurisdictionOptions: JurisdictionRow[];
+  onToggle: () => void;
+  onStartEdit: () => void;
+  onCancelEdit: () => void;
+  onSaveEdit: () => void;
+  onDelete: () => void;
+  onViewOriginal: (id: number) => void;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   MAIN COMPONENT — Data logic + variant routing
+   ═══════════════════════════════════════════════════════════════════ */
 
 export default function QuotesBrowser() {
   const queryClient = useQueryClient();
+  const [variant, setVariant] = useState<VariantKey>(
+    () => (localStorage.getItem('quotes-variant') as VariantKey) || '0',
+  );
   const [filters, setFilters] = useState<QuoteFilters>({ page: 1, page_size: 50 });
   const [expanded, setExpanded] = useState<number | null>(null);
   const [editing, setEditing] = useState<number | null>(null);
-  const [editForm, setEditForm] = useState<{
-    quote_text: string;
-    date_said: string;
-    date_recorded: string;
-    jurisdiction_names: string[];
-  }>({ quote_text: '', date_said: '', date_recorded: '', jurisdiction_names: [] });
+  const [editForm, setEditForm] = useState<EditFormState>({
+    quote_text: '',
+    date_said: '',
+    date_recorded: '',
+    jurisdiction_names: [],
+  });
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.altKey && !e.ctrlKey && !e.metaKey && ['0', '1', '3'].includes(e.key)) {
+        e.preventDefault();
+        const v = e.key as VariantKey;
+        setVariant(v);
+        localStorage.setItem('quotes-variant', v);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['quotes', filters],
@@ -71,6 +142,871 @@ export default function QuotesBrowser() {
 
   const totalPages = data ? Math.ceil(data.total / (filters.page_size || 50)) : 0;
 
+  const viewProps: ViewProps = {
+    filters,
+    setFilters,
+    data,
+    isLoading,
+    error: error as Error | null,
+    jurisdictionOptions,
+    expanded,
+    setExpanded,
+    editing,
+    startEdit,
+    cancelEdit: () => setEditing(null),
+    saveEdit,
+    editForm,
+    setEditForm,
+    onDelete: (id: number) => {
+      if (confirm('Delete this quote?')) deleteMut.mutate(id);
+    },
+    totalPages,
+  };
+
+  const switchVariant = (v: VariantKey) => {
+    setVariant(v);
+    localStorage.setItem('quotes-variant', v);
+  };
+
+  return (
+    <>
+      {variant === '0' && <ClassicView {...viewProps} />}
+      {variant === '1' && <EditorialView {...viewProps} />}
+      {variant === '3' && <OrganicView {...viewProps} />}
+      <VariantSwitcher variant={variant} onSwitch={switchVariant} />
+    </>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   VARIANT SWITCHER — Floating pill in bottom-right
+   ═══════════════════════════════════════════════════════════════════ */
+
+function VariantSwitcher({
+  variant,
+  onSwitch,
+}: {
+  variant: VariantKey;
+  onSwitch: (v: VariantKey) => void;
+}) {
+  const labels: Record<VariantKey, string> = {
+    '0': 'Classic',
+    '1': 'The Record',
+    '3': 'Greenhouse',
+  };
+  return (
+    <div className="fixed bottom-5 right-5 z-50 flex flex-col items-end gap-1.5">
+      <div className="flex items-center gap-1 rounded-full bg-black/80 backdrop-blur-md px-2 py-1.5 shadow-2xl ring-1 ring-white/10">
+        {(['0', '1', '3'] as const).map((v) => (
+          <button
+            key={v}
+            onClick={() => onSwitch(v)}
+            title={`${labels[v]} (⌥${v})`}
+            className={`w-9 h-9 rounded-full text-xs font-semibold transition-all duration-200 ${
+              variant === v
+                ? 'bg-white text-black shadow-md scale-105'
+                : 'text-white/40 hover:text-white/70 hover:bg-white/10'
+            }`}
+          >
+            {v}
+          </button>
+        ))}
+      </div>
+      <span className="text-[10px] text-white/30 pr-2 select-none">⌥ 0/1/3</span>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   SHARED — Expanded quote content (read view + edit form)
+   ═══════════════════════════════════════════════════════════════════ */
+
+function ExpandedContent({
+  quote,
+  isEditing,
+  editForm,
+  setEditForm,
+  jurisdictionOptions,
+  onStartEdit,
+  onCancelEdit,
+  onSaveEdit,
+  onDelete,
+  onViewOriginal,
+}: {
+  quote: QuoteWithDetails;
+  isEditing: boolean;
+  editForm: EditFormState;
+  setEditForm: (f: EditFormState) => void;
+  jurisdictionOptions: JurisdictionRow[];
+  onStartEdit: () => void;
+  onCancelEdit: () => void;
+  onSaveEdit: () => void;
+  onDelete: () => void;
+  onViewOriginal: (id: number) => void;
+}) {
+  const { data: originalQuote } = useQuery({
+    queryKey: ['quote', quote.duplicate_of_id],
+    queryFn: () => fetchQuote(quote.duplicate_of_id!),
+    enabled: !!quote.duplicate_of_id,
+  });
+
+  if (isEditing) {
+    return (
+      <SharedEditForm
+        editForm={editForm}
+        setEditForm={setEditForm}
+        jurisdictionOptions={jurisdictionOptions}
+        onSave={onSaveEdit}
+        onCancel={onCancelEdit}
+      />
+    );
+  }
+
+  const t = {
+    text: 'text-slate-800',
+    meta: 'text-slate-500',
+    dim: 'text-slate-400',
+    link: 'text-blue-600 hover:text-blue-800',
+    border: 'border-blue-300',
+    edit: 'text-blue-600 hover:text-blue-800',
+    del: 'text-red-500 hover:text-red-700',
+    dupBg: 'bg-amber-50 border-amber-200',
+    dupTitle: 'text-amber-800',
+    dupQuote: 'border-amber-300 text-amber-900',
+    dupLink: 'text-amber-600 hover:text-amber-800',
+  };
+
+  return (
+    <div>
+      <blockquote
+        className={`${t.text} leading-relaxed mb-3 italic border-l-4 ${t.border} pl-4`}
+      >
+        &ldquo;{quote.quote_text}&rdquo;
+      </blockquote>
+
+      {quote.person && (
+        <p className={`text-sm ${t.meta} mb-3`}>
+          <span className="font-medium">Speaker</span>{' '}
+          <Link
+            to={`/people/${quote.person.id}`}
+            className={`${t.link} font-medium hover:underline`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {quote.person.name}
+          </Link>
+        </p>
+      )}
+
+      {quote.is_duplicate && originalQuote && (
+        <div className={`mb-3 px-3 py-2.5 rounded-lg text-sm border ${t.dupBg}`}>
+          <p
+            className={`font-medium text-xs uppercase tracking-wider mb-1.5 ${t.dupTitle}`}
+          >
+            Duplicate of
+          </p>
+          <blockquote
+            className={`text-xs italic leading-relaxed border-l-2 pl-2.5 ${t.dupQuote}`}
+          >
+            &ldquo;
+            {originalQuote.quote_text.length > 200
+              ? originalQuote.quote_text.substring(0, 200) + '...'
+              : originalQuote.quote_text}
+            &rdquo;
+          </blockquote>
+          <div className="flex items-center gap-3 mt-2 text-xs">
+            {originalQuote.article && (
+              <a
+                href={originalQuote.article.url}
+                target="_blank"
+                rel="noreferrer"
+                className={`underline ${t.dupLink}`}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {originalQuote.article.title ||
+                  originalQuote.article.publication ||
+                  'Source article'}
+              </a>
+            )}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onViewOriginal(originalQuote.id);
+              }}
+              className={`underline font-medium ${t.dupLink}`}
+            >
+              Jump to original
+            </button>
+          </div>
+        </div>
+      )}
+
+      {quote.context && (
+        <p className={`text-sm ${t.meta} mb-3`}>
+          <span className="font-medium">Context:</span> {quote.context}
+        </p>
+      )}
+      {quote.date_recorded && (
+        <p className={`text-sm ${t.dim} mb-3`}>
+          <span className="font-medium">Recorded:</span> {quote.date_recorded}
+        </p>
+      )}
+      {quote.article && (
+        <p className={`text-sm ${t.dim} mb-3`}>
+          Source:{' '}
+          <a
+            href={quote.article.url}
+            target="_blank"
+            rel="noreferrer"
+            className={`${t.link} hover:underline`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {quote.article.title || quote.article.url}
+          </a>
+        </p>
+      )}
+      <div className="flex gap-3">
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onStartEdit();
+          }}
+          className={`text-sm ${t.edit} font-medium`}
+        >
+          Edit
+        </button>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete();
+          }}
+          className={`text-sm ${t.del} font-medium`}
+        >
+          Delete
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   SHARED — Edit form (jurisdictions, dates, quote text)
+   ═══════════════════════════════════════════════════════════════════ */
+
+function SharedEditForm({
+  editForm,
+  setEditForm,
+  jurisdictionOptions,
+  onSave,
+  onCancel,
+}: {
+  editForm: EditFormState;
+  setEditForm: (f: EditFormState) => void;
+  jurisdictionOptions: JurisdictionRow[];
+  onSave: () => void;
+  onCancel: () => void;
+}) {
+  const knownNames = new Set(jurisdictionOptions.map((j) => j.name));
+  const selectedNames = new Set(editForm.jurisdiction_names);
+  const extraNames = editForm.jurisdiction_names.filter((n) => !knownNames.has(n));
+
+  function toggleName(name: string) {
+    const next = selectedNames.has(name)
+      ? editForm.jurisdiction_names.filter((n) => n !== name)
+      : [...editForm.jurisdiction_names, name];
+    setEditForm({ ...editForm, jurisdiction_names: next });
+  }
+
+  return (
+    <div className="space-y-3" onClick={(e) => e.stopPropagation()}>
+      <textarea
+        value={editForm.quote_text}
+        onChange={(e) => setEditForm({ ...editForm, quote_text: e.target.value })}
+        rows={3}
+        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+      />
+      <div className="flex gap-4">
+        <div>
+          <label className="block text-xs font-medium mb-1 text-slate-500">Date Said</label>
+          <input
+            type="date"
+            value={editForm.date_said}
+            onChange={(e) => setEditForm({ ...editForm, date_said: e.target.value })}
+            className="px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white text-slate-900"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium mb-1 text-slate-500">
+            Date Recorded
+          </label>
+          <input
+            type="date"
+            value={editForm.date_recorded}
+            onChange={(e) =>
+              setEditForm({ ...editForm, date_recorded: e.target.value })
+            }
+            className="px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white text-slate-900"
+          />
+        </div>
+      </div>
+      <div>
+        <label className="block text-xs font-medium mb-1.5 text-slate-500">
+          Jurisdictions
+        </label>
+        {jurisdictionOptions.length === 0 ? (
+          <p className="text-xs text-slate-500">No jurisdiction list loaded.</p>
+        ) : (
+          <div className="max-h-40 overflow-y-auto rounded-lg border border-slate-200 bg-white px-2 py-2">
+            <ul className="space-y-0.5">
+              {jurisdictionOptions.map((j) => (
+                <li key={j.id}>
+                  <label className="flex cursor-pointer items-center gap-2.5 px-2 py-1 text-sm rounded text-slate-700 hover:bg-slate-50">
+                    <input
+                      type="checkbox"
+                      checked={selectedNames.has(j.name)}
+                      onChange={() => toggleName(j.name)}
+                      className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <span className="min-w-0 flex-1">
+                      {j.name}
+                      {j.abbreviation && (
+                        <span className="text-slate-400"> ({j.abbreviation})</span>
+                      )}
+                    </span>
+                  </label>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {extraNames.length > 0 && (
+          <div className="mt-2">
+            <p className="text-[10px] font-medium uppercase tracking-wide mb-1 text-slate-500">
+              Other tags
+            </p>
+            <div className="flex flex-wrap gap-1">
+              {extraNames.map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() =>
+                    setEditForm({
+                      ...editForm,
+                      jurisdiction_names: editForm.jurisdiction_names.filter(
+                        (x) => x !== n,
+                      ),
+                    })
+                  }
+                  className="inline-flex items-center gap-1 rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[11px] font-medium text-emerald-800 hover:bg-emerald-100"
+                >
+                  {n}{' '}
+                  <span className="text-emerald-600" aria-hidden>
+                    ×
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+      <div className="flex gap-2">
+        <button
+          onClick={onSave}
+          className="px-4 py-2 text-sm font-medium rounded-lg transition bg-blue-600 text-white hover:bg-blue-700"
+        >
+          Save
+        </button>
+        <button
+          onClick={onCancel}
+          className="px-4 py-2 text-sm transition text-slate-600 hover:text-slate-800"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   VARIANT 1 — "The Record" (Editorial Broadsheet)
+
+   Warm cream background, serif typography (Playfair Display + Lora),
+   gold accents, newspaper-column card layout with decorative
+   quotation marks and editorial styling.
+   ═══════════════════════════════════════════════════════════════════ */
+
+function EditorialView({
+  filters,
+  setFilters,
+  data,
+  isLoading,
+  error,
+  jurisdictionOptions,
+  expanded,
+  setExpanded,
+  editing,
+  startEdit,
+  cancelEdit,
+  saveEdit,
+  editForm,
+  setEditForm,
+  onDelete,
+  totalPages,
+}: ViewProps) {
+  return (
+    <div
+      className="-mx-6 -my-8 px-6 py-8 min-h-screen"
+      style={{ background: '#faf7f2' }}
+    >
+      <div className="text-center mb-8">
+        <h2
+          className="text-3xl font-bold tracking-[0.18em] uppercase"
+          style={{ fontFamily: 'Playfair Display, serif', color: '#1a1a2e' }}
+        >
+          The Statement Record
+        </h2>
+        <div
+          className="w-20 h-0.5 mx-auto mt-3 mb-2"
+          style={{ background: '#c9a84c' }}
+        />
+        <p
+          className="text-sm italic"
+          style={{ fontFamily: 'Lora, serif', color: '#8a8070' }}
+        >
+          Browse and filter AI-related quotes from all tracked speakers.
+        </p>
+      </div>
+
+      <FilterBar
+        filters={filters}
+        onChange={setFilters}
+        jurisdictions={jurisdictionOptions}
+      />
+
+      <div
+        className="mb-6 px-5 py-4 rounded-lg border text-sm"
+        style={{
+          background: '#f5f0e5',
+          borderColor: '#e0d8c8',
+          color: '#6b6050',
+        }}
+      >
+        <span
+          className="font-semibold uppercase text-xs tracking-wider"
+          style={{ fontFamily: 'Playfair Display, serif', color: '#8b6914' }}
+        >
+          Editor&rsquo;s Note:
+        </span>{' '}
+        <span style={{ fontFamily: 'Lora, serif' }}>
+          Duplicate quotes are automatically detected and hidden by default. Use the
+          &ldquo;Show duplicates&rdquo; filter to reveal them.
+        </span>
+      </div>
+
+      {error && (
+        <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
+          {error.message}
+        </div>
+      )}
+
+      {isLoading ? (
+        <div className="text-center py-16">
+          <div
+            className="inline-block w-8 h-8 border-4 rounded-full animate-spin"
+            style={{ borderColor: '#e8dcc8', borderTopColor: '#c9a84c' }}
+          />
+        </div>
+      ) : (
+        <>
+          <div className="max-w-4xl mx-auto space-y-4">
+            {data?.quotes.map((q, i) => (
+              <EditorialCard
+                key={q.id}
+                quote={q}
+                index={i}
+                isExpanded={expanded === q.id}
+                isEditing={editing === q.id}
+                editForm={editForm}
+                setEditForm={setEditForm}
+                jurisdictionOptions={jurisdictionOptions}
+                onToggle={() => setExpanded(expanded === q.id ? null : q.id)}
+                onStartEdit={() => startEdit(q)}
+                onCancelEdit={cancelEdit}
+                onSaveEdit={() => saveEdit(q.id)}
+                onDelete={() => onDelete(q.id)}
+                onViewOriginal={(id) => setExpanded(id)}
+              />
+            ))}
+            {data?.quotes.length === 0 && (
+              <div
+                className="text-center py-16"
+                style={{ fontFamily: 'Lora, serif', color: '#9a9080' }}
+              >
+                No quotes found.
+              </div>
+            )}
+          </div>
+
+          {totalPages > 1 && (
+            <div
+              className="max-w-4xl mx-auto flex items-center justify-center gap-6 mt-8 text-sm"
+              style={{ fontFamily: 'Lora, serif', color: '#6b6050' }}
+            >
+              <button
+                disabled={(filters.page || 1) <= 1}
+                onClick={() =>
+                  setFilters({ ...filters, page: (filters.page || 1) - 1 })
+                }
+                className="px-4 py-2 transition disabled:opacity-30 hover:opacity-70"
+                style={{ borderBottom: '1px solid #c9a84c' }}
+              >
+                &larr; Previous
+              </button>
+              <span>
+                Page {filters.page || 1} of {totalPages}{' '}
+                <span className="text-xs" style={{ color: '#a09880' }}>
+                  ({data?.total} total)
+                </span>
+              </span>
+              <button
+                disabled={(filters.page || 1) >= totalPages}
+                onClick={() =>
+                  setFilters({ ...filters, page: (filters.page || 1) + 1 })
+                }
+                className="px-4 py-2 transition disabled:opacity-30 hover:opacity-70"
+                style={{ borderBottom: '1px solid #c9a84c' }}
+              >
+                Next &rarr;
+              </button>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function EditorialCard({
+  quote,
+  index,
+  isExpanded,
+  isEditing,
+  editForm,
+  setEditForm,
+  jurisdictionOptions,
+  onToggle,
+  onStartEdit,
+  onCancelEdit,
+  onSaveEdit,
+  onDelete,
+  onViewOriginal,
+}: QuoteItemProps) {
+  return (
+    <div
+      onClick={onToggle}
+      className="relative bg-white border-l-4 rounded-r-lg cursor-pointer transition-all duration-300"
+      style={{
+        borderLeftColor: '#c9a84c',
+        boxShadow: isExpanded
+          ? '0 4px 20px rgba(0,0,0,0.08)'
+          : '0 1px 4px rgba(0,0,0,0.06)',
+        animation: `fadeInUp 0.4s ease-out ${index * 50}ms both`,
+      }}
+    >
+      <div
+        className="absolute top-2 right-5 text-7xl leading-none select-none pointer-events-none"
+        style={{ fontFamily: 'Playfair Display, serif', color: '#f0e8d8' }}
+      >
+        &ldquo;
+      </div>
+
+      <div className="px-6 py-5 relative">
+        <p
+          className="leading-relaxed pr-12 italic"
+          style={{ fontFamily: 'Lora, serif', color: '#2d2a26' }}
+        >
+          &ldquo;
+          {isExpanded
+            ? quote.quote_text
+            : quote.quote_text.length > 280
+              ? quote.quote_text.substring(0, 280) + '...'
+              : quote.quote_text}
+          &rdquo;
+        </p>
+
+        <div className="mt-3 flex items-baseline gap-2 flex-wrap">
+          <span style={{ color: '#c9a84c', fontFamily: 'Playfair Display, serif' }}>
+            &mdash;
+          </span>
+          {quote.person ? (
+            <Link
+              to={`/people/${quote.person.id}`}
+              className="font-semibold hover:underline"
+              style={{ fontFamily: 'Playfair Display, serif', color: '#1a1a2e' }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {quote.person.name}
+            </Link>
+          ) : (
+            <span style={{ color: '#6b6560' }}>Unknown</span>
+          )}
+          {quote.person?.party && (
+            <span className="text-xs" style={{ color: '#8b7550' }}>
+              ({quote.person.party})
+            </span>
+          )}
+          {quote.person?.role && (
+            <span className="text-xs" style={{ color: '#8b7550' }}>
+              &middot; {quote.person.role}
+            </span>
+          )}
+        </div>
+
+        <div
+          className="mt-2 flex items-center gap-3 text-xs"
+          style={{ color: '#a09880' }}
+        >
+          {quote.date_said && <span>{quote.date_said}</span>}
+          {quote.article?.publication && (
+            <span className="italic">
+              {quote.date_said ? '· ' : ''}
+              {quote.article.publication}
+            </span>
+          )}
+          {quote.is_duplicate && (
+            <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700 border border-amber-200">
+              Duplicate
+            </span>
+          )}
+        </div>
+
+        {(quote.jurisdictions ?? []).length > 0 && (
+          <div className="mt-2.5 flex flex-wrap gap-1.5">
+            {(quote.jurisdictions ?? []).map((tag) => (
+              <span
+                key={tag}
+                className="px-2 py-0.5 rounded-full text-[10px] font-medium"
+                style={{
+                  background: '#f5f0e5',
+                  color: '#8b6914',
+                  border: '1px solid #e5dcc8',
+                }}
+              >
+                {tag}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {isExpanded && (
+        <div
+          className="border-t px-6 py-5"
+          style={{ borderColor: '#e8dcc8', background: '#faf7f2' }}
+        >
+          <ExpandedContent
+            quote={quote}
+            isEditing={isEditing}
+            editForm={editForm}
+            setEditForm={setEditForm}
+            jurisdictionOptions={jurisdictionOptions}
+            onStartEdit={onStartEdit}
+            onCancelEdit={onCancelEdit}
+            onSaveEdit={onSaveEdit}
+            onDelete={onDelete}
+            onViewOriginal={onViewOriginal}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   VARIANT 3 — "Greenhouse" (Organic / Nature)
+
+   Warm ivory background, variable serif (Fraunces) + geometric
+   sans (Outfit), sage green + terracotta accents, rounded card
+   grid with initials avatars and gentle hover animations.
+   ═══════════════════════════════════════════════════════════════════ */
+
+function OrganicView({
+  filters,
+  setFilters,
+  data,
+  isLoading,
+  error,
+  jurisdictionOptions,
+  expanded,
+  setExpanded,
+  editing,
+  startEdit,
+  cancelEdit,
+  saveEdit,
+  editForm,
+  setEditForm,
+  onDelete,
+  totalPages,
+}: ViewProps) {
+  return (
+    <div
+      className="-mx-6 -my-8 px-6 py-8 min-h-screen"
+      style={{ background: '#f7f3eb' }}
+    >
+      <div className="mb-8">
+        <div className="flex items-center gap-3">
+          <div
+            className="w-9 h-9 rounded-xl flex items-center justify-center text-white text-sm"
+            style={{ background: '#3d7a54' }}
+          >
+            &#x275D;
+          </div>
+          <div>
+            <h2
+              className="text-2xl font-semibold"
+              style={{ fontFamily: 'Fraunces, serif', color: '#2d3436' }}
+            >
+              Quote Garden
+            </h2>
+            <p
+              className="text-sm -mt-0.5"
+              style={{ fontFamily: 'Outfit, sans-serif', color: '#7a8a80' }}
+            >
+              Browse and filter AI-related quotes from all tracked speakers.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <FilterBar
+        filters={filters}
+        onChange={setFilters}
+        jurisdictions={jurisdictionOptions}
+      />
+
+      <div
+        className="mb-6 px-5 py-4 rounded-2xl border flex items-start gap-3 text-sm"
+        style={{
+          background: '#f0ebe0',
+          borderColor: '#e0d8c8',
+          color: '#6b7b73',
+          fontFamily: 'Outfit, sans-serif',
+        }}
+      >
+        <span className="text-lg leading-none mt-0.5">&#x1F33F;</span>
+        <span>
+          Duplicate quotes are hidden by default to keep things tidy. Toggle
+          &ldquo;Show duplicates&rdquo; above to reveal them.
+        </span>
+      </div>
+
+      {error && (
+        <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 text-red-700 rounded-2xl text-sm">
+          {error.message}
+        </div>
+      )}
+
+      {isLoading ? (
+        <div className="text-center py-16">
+          <div
+            className="inline-block w-8 h-8 border-4 rounded-full animate-spin"
+            style={{ borderColor: '#d0ddd0', borderTopColor: '#3d7a54' }}
+          />
+        </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {data?.quotes.map((q, i) => (
+              <OrganicCard
+                key={q.id}
+                quote={q}
+                index={i}
+                isExpanded={expanded === q.id}
+                isEditing={editing === q.id}
+                editForm={editForm}
+                setEditForm={setEditForm}
+                jurisdictionOptions={jurisdictionOptions}
+                onToggle={() => setExpanded(expanded === q.id ? null : q.id)}
+                onStartEdit={() => startEdit(q)}
+                onCancelEdit={cancelEdit}
+                onSaveEdit={() => saveEdit(q.id)}
+                onDelete={() => onDelete(q.id)}
+                onViewOriginal={(id) => setExpanded(id)}
+              />
+            ))}
+            {data?.quotes.length === 0 && (
+              <div
+                className="col-span-full text-center py-16"
+                style={{ fontFamily: 'Outfit, sans-serif', color: '#a0b0a0' }}
+              >
+                No quotes found.
+              </div>
+            )}
+          </div>
+
+          {totalPages > 1 && (
+            <div
+              className="flex items-center justify-center gap-4 mt-8"
+              style={{ fontFamily: 'Outfit, sans-serif' }}
+            >
+              <button
+                disabled={(filters.page || 1) <= 1}
+                onClick={() =>
+                  setFilters({ ...filters, page: (filters.page || 1) - 1 })
+                }
+                className="px-5 py-2.5 rounded-full text-sm font-medium transition disabled:opacity-30 hover:opacity-80"
+                style={{ background: '#3d7a54', color: 'white' }}
+              >
+                &larr; Previous
+              </button>
+              <span className="text-sm" style={{ color: '#6b7b73' }}>
+                Page {filters.page || 1} of {totalPages}
+                <span className="text-xs ml-1" style={{ color: '#a0b0a0' }}>
+                  ({data?.total})
+                </span>
+              </span>
+              <button
+                disabled={(filters.page || 1) >= totalPages}
+                onClick={() =>
+                  setFilters({ ...filters, page: (filters.page || 1) + 1 })
+                }
+                className="px-5 py-2.5 rounded-full text-sm font-medium transition disabled:opacity-30 hover:opacity-80"
+                style={{ background: '#3d7a54', color: 'white' }}
+              >
+                Next &rarr;
+              </button>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   VARIANT 0 — "Classic" (Original design)
+
+   The original table-based layout with Tailwind defaults: white
+   cards, slate accents, blue links, standard sans-serif typography.
+   ═══════════════════════════════════════════════════════════════════ */
+
+function ClassicView({
+  filters,
+  setFilters,
+  data,
+  isLoading,
+  error,
+  jurisdictionOptions,
+  expanded,
+  setExpanded,
+  editing,
+  startEdit,
+  cancelEdit,
+  saveEdit,
+  editForm,
+  setEditForm,
+  onDelete,
+  totalPages,
+}: ViewProps) {
   return (
     <div>
       <h2 className="text-2xl font-bold text-slate-900 mb-1">Quotes</h2>
@@ -78,22 +1014,36 @@ export default function QuotesBrowser() {
         Browse and filter AI-related quotes from all tracked speakers.
       </p>
 
-      <FilterBar filters={filters} onChange={setFilters} jurisdictions={jurisdictionOptions} />
+      <FilterBar
+        filters={filters}
+        onChange={setFilters}
+        jurisdictions={jurisdictionOptions}
+      />
 
       <div className="mb-4 px-4 py-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700 flex items-start gap-2">
-        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 shrink-0 mt-0.5" viewBox="0 0 20 20" fill="currentColor">
-          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          className="h-5 w-5 shrink-0 mt-0.5"
+          viewBox="0 0 20 20"
+          fill="currentColor"
+        >
+          <path
+            fillRule="evenodd"
+            d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+            clipRule="evenodd"
+          />
         </svg>
         <span>
-          Duplicate quotes are automatically detected when articles are saved and <strong>hidden by default</strong> to
-          keep your data clean. Use the "Show duplicates" checkbox above to reveal them. Duplicates are
+          Duplicate quotes are automatically detected when articles are saved and{' '}
+          <strong>hidden by default</strong> to keep your data clean. Use the
+          &quot;Show duplicates&quot; checkbox above to reveal them. Duplicates are
           identified by matching normalized text for the same speaker.
         </span>
       </div>
 
       {error && (
         <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
-          {(error as Error).message}
+          {error.message}
         </div>
       )}
 
@@ -107,39 +1057,53 @@ export default function QuotesBrowser() {
             <table className="w-full text-sm table-fixed">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50">
-                  <th className="text-left px-4 py-3 font-medium text-slate-500 w-[100px]">Date</th>
-                  <th className="text-left px-4 py-3 font-medium text-slate-500 w-[120px]">Speaker</th>
-                  <th className="text-left px-4 py-3 font-medium text-slate-500 w-[150px]">Role</th>
-                  <th className="text-left px-4 py-3 font-medium text-slate-500 w-[80px]">Party</th>
-                  <th className="text-left px-4 py-3 font-medium text-slate-500 w-[160px]">Jurisdiction</th>
-                  <th className="text-left px-4 py-3 font-medium text-slate-500">Quote</th>
-                  <th className="text-left px-4 py-3 font-medium text-slate-500 w-[100px]">Publication</th>
-                  <th className="px-4 py-3 w-[40px]"></th>
+                  <th className="text-left px-4 py-3 font-medium text-slate-500 w-[100px]">
+                    Date
+                  </th>
+                  <th className="text-left px-4 py-3 font-medium text-slate-500 w-[120px]">
+                    Speaker
+                  </th>
+                  <th className="text-left px-4 py-3 font-medium text-slate-500 w-[150px]">
+                    Role
+                  </th>
+                  <th className="text-left px-4 py-3 font-medium text-slate-500 w-[80px]">
+                    Party
+                  </th>
+                  <th className="text-left px-4 py-3 font-medium text-slate-500 w-[160px]">
+                    Jurisdiction
+                  </th>
+                  <th className="text-left px-4 py-3 font-medium text-slate-500">
+                    Quote
+                  </th>
+                  <th className="px-4 py-3 w-[40px]" />
                 </tr>
               </thead>
               <tbody>
                 {data?.quotes.map((q) => (
-                  <QuoteRow
+                  <ClassicQuoteRow
                     key={q.id}
                     quote={q}
                     jurisdictionOptions={jurisdictionOptions}
                     isExpanded={expanded === q.id}
                     isEditing={editing === q.id}
                     editForm={editForm}
-                    onToggle={() => setExpanded(expanded === q.id ? null : q.id)}
+                    setEditForm={setEditForm}
+                    onToggle={() =>
+                      setExpanded(expanded === q.id ? null : q.id)
+                    }
                     onStartEdit={() => startEdit(q)}
-                    onCancelEdit={() => setEditing(null)}
+                    onCancelEdit={cancelEdit}
                     onSaveEdit={() => saveEdit(q.id)}
-                    onEditChange={setEditForm}
-                    onDelete={() => {
-                      if (confirm('Delete this quote?')) deleteMut.mutate(q.id);
-                    }}
-                    onViewOriginal={(origId) => setExpanded(origId)}
+                    onDelete={() => onDelete(q.id)}
+                    onViewOriginal={(id) => setExpanded(id)}
                   />
                 ))}
                 {data?.quotes.length === 0 && (
                   <tr>
-                    <td colSpan={8} className="text-center py-8 text-slate-400">
+                    <td
+                      colSpan={7}
+                      className="text-center py-8 text-slate-400"
+                    >
                       No quotes found.
                     </td>
                   </tr>
@@ -156,7 +1120,9 @@ export default function QuotesBrowser() {
               <div className="flex gap-2">
                 <button
                   disabled={(filters.page || 1) <= 1}
-                  onClick={() => setFilters({ ...filters, page: (filters.page || 1) - 1 })}
+                  onClick={() =>
+                    setFilters({ ...filters, page: (filters.page || 1) - 1 })
+                  }
                   className="px-3 py-1.5 border border-slate-300 rounded text-sm disabled:opacity-40"
                 >
                   Previous
@@ -166,7 +1132,9 @@ export default function QuotesBrowser() {
                 </span>
                 <button
                   disabled={(filters.page || 1) >= totalPages}
-                  onClick={() => setFilters({ ...filters, page: (filters.page || 1) + 1 })}
+                  onClick={() =>
+                    setFilters({ ...filters, page: (filters.page || 1) + 1 })
+                  }
                   className="px-3 py-1.5 border border-slate-300 rounded text-sm disabled:opacity-40"
                 >
                   Next
@@ -180,17 +1148,17 @@ export default function QuotesBrowser() {
   );
 }
 
-function QuoteRow({
+function ClassicQuoteRow({
   quote,
   jurisdictionOptions,
   isExpanded,
   isEditing,
   editForm,
+  setEditForm,
   onToggle,
   onStartEdit,
   onCancelEdit,
   onSaveEdit,
-  onEditChange,
   onDelete,
   onViewOriginal,
 }: {
@@ -198,55 +1166,20 @@ function QuoteRow({
   jurisdictionOptions: JurisdictionRow[];
   isExpanded: boolean;
   isEditing: boolean;
-  editForm: {
-    quote_text: string;
-    date_said: string;
-    date_recorded: string;
-    jurisdiction_names: string[];
-  };
+  editForm: EditFormState;
+  setEditForm: (f: EditFormState) => void;
   onToggle: () => void;
   onStartEdit: () => void;
   onCancelEdit: () => void;
   onSaveEdit: () => void;
-  onEditChange: (f: {
-    quote_text: string;
-    date_said: string;
-    date_recorded: string;
-    jurisdiction_names: string[];
-  }) => void;
   onDelete: () => void;
   onViewOriginal: (id: number) => void;
 }) {
-  const { data: originalQuote } = useQuery({
-    queryKey: ['quote', quote.duplicate_of_id],
-    queryFn: () => fetchQuote(quote.duplicate_of_id!),
-    enabled: isExpanded && !!quote.duplicate_of_id,
-  });
-
   const partyColor: Record<string, string> = {
     Democrat: 'bg-blue-100 text-blue-700',
     Republican: 'bg-red-100 text-red-700',
     Independent: 'bg-purple-100 text-purple-700',
   };
-
-  const knownNameSet = new Set(jurisdictionOptions.map((j) => j.name));
-  const selectedNameSet = new Set(editForm.jurisdiction_names);
-
-  function toggleJurisdictionName(name: string) {
-    const next = selectedNameSet.has(name)
-      ? editForm.jurisdiction_names.filter((n) => n !== name)
-      : [...editForm.jurisdiction_names, name];
-    onEditChange({ ...editForm, jurisdiction_names: next });
-  }
-
-  function removeJurisdictionName(name: string) {
-    onEditChange({
-      ...editForm,
-      jurisdiction_names: editForm.jurisdiction_names.filter((n) => n !== name),
-    });
-  }
-
-  const extraJurisdictionNames = editForm.jurisdiction_names.filter((n) => !knownNameSet.has(n));
 
   return (
     <>
@@ -315,210 +1248,204 @@ function QuoteRow({
             )}
           </div>
         </td>
-        <td className="px-4 py-3 text-slate-500">
-          {quote.article?.publication || '—'}
-        </td>
         <td className="px-4 py-3">
-          <span className="text-slate-400 text-xs">{isExpanded ? '▲' : '▼'}</span>
+          <span className="text-slate-400 text-xs">
+            {isExpanded ? '▲' : '▼'}
+          </span>
         </td>
       </tr>
       {isExpanded && (
         <tr className="bg-slate-50">
-          <td colSpan={8} className="px-6 py-4">
-            {isEditing ? (
-              <div className="space-y-3">
-                <textarea
-                  value={editForm.quote_text}
-                  onChange={(e) =>
-                    onEditChange({ ...editForm, quote_text: e.target.value })
-                  }
-                  rows={3}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                />
-                <div className="flex gap-4">
-                  <div>
-                    <label className="block text-xs font-medium text-slate-500 mb-1">Date Said</label>
-                    <input
-                      type="date"
-                      value={editForm.date_said}
-                      onChange={(e) =>
-                        onEditChange({ ...editForm, date_said: e.target.value })
-                      }
-                      className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-slate-500 mb-1">Date Recorded</label>
-                    <input
-                      type="date"
-                      value={editForm.date_recorded}
-                      onChange={(e) =>
-                        onEditChange({ ...editForm, date_recorded: e.target.value })
-                      }
-                      className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                    />
-                  </div>
-                </div>
-                <div onClick={(e) => e.stopPropagation()}>
-                  <label className="block text-xs font-medium text-slate-500 mb-1.5">Jurisdictions</label>
-                  {jurisdictionOptions.length === 0 ? (
-                    <p className="text-xs text-slate-500">No jurisdiction list loaded.</p>
-                  ) : (
-                    <div className="max-h-40 overflow-y-auto rounded-lg border border-slate-200 bg-white px-2 py-2">
-                      <ul className="space-y-0.5">
-                        {jurisdictionOptions.map((j) => (
-                          <li key={j.id}>
-                            <label className="flex cursor-pointer items-center gap-2.5 px-2 py-1 text-sm text-slate-700 hover:bg-slate-50 rounded">
-                              <input
-                                type="checkbox"
-                                className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                                checked={selectedNameSet.has(j.name)}
-                                onChange={() => toggleJurisdictionName(j.name)}
-                              />
-                              <span className="min-w-0 flex-1">
-                                {j.name}
-                                {j.abbreviation ? (
-                                  <span className="text-slate-400"> ({j.abbreviation})</span>
-                                ) : null}
-                              </span>
-                            </label>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                  {extraJurisdictionNames.length > 0 && (
-                    <div className="mt-2">
-                      <p className="text-[10px] font-medium text-slate-500 uppercase tracking-wide mb-1">
-                        Other tags (not in list)
-                      </p>
-                      <div className="flex flex-wrap gap-1">
-                        {extraJurisdictionNames.map((n) => (
-                          <button
-                            key={n}
-                            type="button"
-                            onClick={() => removeJurisdictionName(n)}
-                            className="inline-flex items-center gap-1 rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[11px] font-medium text-emerald-800 hover:bg-emerald-100"
-                          >
-                            {n}
-                            <span className="text-emerald-600" aria-hidden>
-                              ×
-                            </span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={onSaveEdit}
-                    className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"
-                  >
-                    Save
-                  </button>
-                  <button
-                    onClick={onCancelEdit}
-                    className="px-3 py-1.5 text-sm text-slate-600 hover:text-slate-800"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div>
-                <blockquote className="text-slate-800 leading-relaxed mb-3 italic border-l-4 border-blue-300 pl-4">
-                  "{quote.quote_text}"
-                </blockquote>
-                {quote.person && (
-                  <p className="text-sm text-slate-600 mb-3">
-                    <span className="font-medium text-slate-500">Speaker</span>{' '}
-                    <Link
-                      to={`/people/${quote.person.id}`}
-                      className="text-blue-600 hover:text-blue-800 font-medium hover:underline"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      {quote.person.name}
-                    </Link>
-                  </p>
-                )}
-                {quote.is_duplicate && originalQuote && (
-                  <div className="mb-3 px-3 py-2.5 bg-amber-50 border border-amber-200 rounded-lg text-sm">
-                    <p className="text-amber-800 font-medium text-xs uppercase tracking-wider mb-1.5">
-                      Duplicate of
-                    </p>
-                    <blockquote className="text-amber-900 text-xs italic leading-relaxed border-l-2 border-amber-300 pl-2.5">
-                      "{originalQuote.quote_text.length > 200
-                        ? originalQuote.quote_text.substring(0, 200) + '...'
-                        : originalQuote.quote_text}"
-                    </blockquote>
-                    <div className="flex items-center gap-3 mt-2 text-xs">
-                      {originalQuote.article && (
-                        <a
-                          href={originalQuote.article.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-amber-600 hover:text-amber-800 underline"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          {originalQuote.article.title || originalQuote.article.publication || 'Source article'}
-                        </a>
-                      )}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onViewOriginal(originalQuote.id);
-                        }}
-                        className="text-amber-600 hover:text-amber-800 underline font-medium"
-                      >
-                        Jump to original
-                      </button>
-                    </div>
-                  </div>
-                )}
-                {quote.context && (
-                  <p className="text-sm text-slate-500 mb-3">
-                    <span className="font-medium">Context:</span> {quote.context}
-                  </p>
-                )}
-                {quote.date_recorded && (
-                  <p className="text-sm text-slate-400 mb-3">
-                    <span className="font-medium">Recorded:</span> {quote.date_recorded}
-                  </p>
-                )}
-                {quote.article && (
-                  <p className="text-sm text-slate-400 mb-3">
-                    Source:{' '}
-                    <a
-                      href={quote.article.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-blue-500 hover:underline"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      {quote.article.title || quote.article.url}
-                    </a>
-                  </p>
-                )}
-                <div className="flex gap-3">
-                  <button
-                    onClick={(e) => { e.stopPropagation(); onStartEdit(); }}
-                    className="text-sm text-blue-600 hover:text-blue-800 font-medium"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); onDelete(); }}
-                    className="text-sm text-red-500 hover:text-red-700 font-medium"
-                  >
-                    Delete
-                  </button>
-                </div>
-              </div>
-            )}
+          <td colSpan={7} className="px-6 py-4">
+            <ExpandedContent
+              quote={quote}
+              isEditing={isEditing}
+              editForm={editForm}
+              setEditForm={setEditForm}
+              jurisdictionOptions={jurisdictionOptions}
+              onStartEdit={onStartEdit}
+              onCancelEdit={onCancelEdit}
+              onSaveEdit={onSaveEdit}
+              onDelete={onDelete}
+              onViewOriginal={onViewOriginal}
+            />
           </td>
         </tr>
       )}
     </>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   VARIANT 3 — "Greenhouse" (Organic / Nature)
+   ═══════════════════════════════════════════════════════════════════ */
+
+function OrganicCard({
+  quote,
+  index,
+  isExpanded,
+  isEditing,
+  editForm,
+  setEditForm,
+  jurisdictionOptions,
+  onToggle,
+  onStartEdit,
+  onCancelEdit,
+  onSaveEdit,
+  onDelete,
+  onViewOriginal,
+}: QuoteItemProps) {
+  const initials = quote.person?.name
+    ? quote.person.name
+        .split(' ')
+        .map((w) => w[0])
+        .join('')
+        .substring(0, 2)
+        .toUpperCase()
+    : '?';
+
+  return (
+    <div
+      onClick={onToggle}
+      className="bg-white rounded-2xl cursor-pointer transition-all duration-300 overflow-hidden"
+      style={{
+        boxShadow: isExpanded
+          ? '0 8px 30px rgba(0,0,0,0.10), 0 0 0 2px #3d7a5425'
+          : '0 2px 8px rgba(0,0,0,0.05)',
+        animation: `fadeInUp 0.4s ease-out ${index * 60}ms both`,
+        transform: isExpanded ? 'none' : undefined,
+      }}
+      onMouseEnter={(e) => {
+        if (!isExpanded) {
+          (e.currentTarget as HTMLElement).style.boxShadow =
+            '0 6px 20px rgba(0,0,0,0.09)';
+          (e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)';
+        }
+      }}
+      onMouseLeave={(e) => {
+        if (!isExpanded) {
+          (e.currentTarget as HTMLElement).style.boxShadow =
+            '0 2px 8px rgba(0,0,0,0.05)';
+          (e.currentTarget as HTMLElement).style.transform = 'none';
+        }
+      }}
+    >
+      <div className="p-5">
+        <div className="flex items-start gap-3 mb-3">
+          <div
+            className="w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0"
+            style={{
+              background: '#c27650',
+              fontFamily: 'Outfit, sans-serif',
+            }}
+          >
+            {initials}
+          </div>
+          <div className="min-w-0 flex-1">
+            {quote.person ? (
+              <Link
+                to={`/people/${quote.person.id}`}
+                className="font-semibold hover:underline block text-sm"
+                style={{ fontFamily: 'Fraunces, serif', color: '#2d3436' }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {quote.person.name}
+              </Link>
+            ) : (
+              <span style={{ fontFamily: 'Fraunces, serif', color: '#a0a0a0' }}>
+                Unknown
+              </span>
+            )}
+            <div
+              className="flex items-center gap-2 text-xs"
+              style={{ color: '#7a8a80', fontFamily: 'Outfit, sans-serif' }}
+            >
+              {quote.person?.role && <span>{quote.person.role}</span>}
+              {quote.person?.party && (
+                <span>
+                  {quote.person?.role ? '· ' : ''}
+                  {quote.person.party}
+                </span>
+              )}
+            </div>
+          </div>
+          {quote.is_duplicate && (
+            <span
+              className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-medium"
+              style={{
+                background: '#fff3e0',
+                color: '#c27650',
+                border: '1px solid #ffd9b3',
+              }}
+            >
+              Duplicate
+            </span>
+          )}
+        </div>
+
+        <p
+          className="leading-relaxed text-sm"
+          style={{ fontFamily: 'Outfit, sans-serif', color: '#3d4440' }}
+        >
+          &ldquo;
+          {isExpanded
+            ? quote.quote_text
+            : quote.quote_text.length > 200
+              ? quote.quote_text.substring(0, 200) + '...'
+              : quote.quote_text}
+          &rdquo;
+        </p>
+
+        <div className="mt-3 flex items-center justify-between gap-2">
+          <div className="flex flex-wrap gap-1.5">
+            {(quote.jurisdictions ?? []).map((tag) => (
+              <span
+                key={tag}
+                className="px-2 py-0.5 rounded-full text-[10px] font-medium"
+                style={{
+                  background: '#e8f0ea',
+                  color: '#3d7a54',
+                  border: '1px solid #c8dcc8',
+                }}
+              >
+                {tag}
+              </span>
+            ))}
+          </div>
+          <div
+            className="flex items-center gap-2 text-xs shrink-0"
+            style={{ color: '#a0b0a0', fontFamily: 'Outfit, sans-serif' }}
+          >
+            {quote.date_said && <span>{quote.date_said}</span>}
+            {quote.article?.publication && (
+              <span className="italic hidden sm:inline">
+                {quote.date_said ? '· ' : ''}
+                {quote.article.publication}
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {isExpanded && (
+        <div
+          className="border-t px-5 py-5"
+          style={{ borderColor: '#e8e0d0', background: '#faf7f2' }}
+        >
+          <ExpandedContent
+            quote={quote}
+            isEditing={isEditing}
+            editForm={editForm}
+            setEditForm={setEditForm}
+            jurisdictionOptions={jurisdictionOptions}
+            onStartEdit={onStartEdit}
+            onCancelEdit={onCancelEdit}
+            onSaveEdit={onSaveEdit}
+            onDelete={onDelete}
+            onViewOriginal={onViewOriginal}
+          />
+        </div>
+      )}
+    </div>
   );
 }
