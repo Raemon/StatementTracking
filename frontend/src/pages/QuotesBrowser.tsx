@@ -838,11 +838,6 @@ function EditorialCard({
           ) : (
             <span style={{ color: '#6b6560' }}>Unknown</span>
           )}
-          {quote.person?.party && (
-            <span className="text-xs" style={{ color: '#8b7550' }}>
-              ({quote.person.party})
-            </span>
-          )}
           {quote.person?.role && (
             <span className="text-xs" style={{ color: '#8b7550' }}>
               &middot; {quote.person.role}
@@ -868,16 +863,28 @@ function EditorialCard({
           )}
         </div>
 
-        {((quote.jurisdictions ?? []).length > 0 || (quote.topics ?? []).length > 0) && (
+        {(quote.person?.party || (quote.jurisdictions ?? []).length > 0 || (quote.topics ?? []).length > 0) && (
           <div className="mt-2.5 flex flex-wrap gap-1.5">
+            {quote.person?.party && (
+              <span
+                className="px-2 py-0.5 rounded-full text-[10px] font-medium"
+                style={{
+                  background: '#e5f0ea',
+                  color: '#2a6e45',
+                  border: '1px solid #c0dcc8',
+                }}
+              >
+                {quote.person.party}
+              </span>
+            )}
             {(quote.jurisdictions ?? []).map((tag) => (
               <span
                 key={`j-${tag}`}
                 className="px-2 py-0.5 rounded-full text-[10px] font-medium"
                 style={{
-                  background: '#f5f0e5',
-                  color: '#8b6914',
-                  border: '1px solid #e5dcc8',
+                  background: '#e5eef5',
+                  color: '#2a5080',
+                  border: '1px solid #c8d5e5',
                 }}
               >
                 {tag}
@@ -1174,10 +1181,7 @@ function ClassicView({
                   <th className="text-left px-4 py-3 font-medium text-slate-500 w-[150px]">
                     Role
                   </th>
-                  <th className="text-left px-4 py-3 font-medium text-slate-500 w-[80px]">
-                    Party
-                  </th>
-                  <th className="text-left px-4 py-3 font-medium text-slate-500 w-[180px]">
+                  <th className="text-left px-4 py-3 font-medium text-slate-500 w-[220px]">
                     Tags
                   </th>
                   <th className="text-left px-4 py-3 font-medium text-slate-500">
@@ -1210,7 +1214,7 @@ function ClassicView({
                 {data?.quotes.length === 0 && (
                   <tr>
                     <td
-                      colSpan={7}
+                      colSpan={6}
                       className="text-center py-8 text-slate-400"
                     >
                       No quotes found.
@@ -1286,11 +1290,7 @@ function ClassicQuoteRow({
   onDelete: () => void;
   onViewOriginal: (id: number) => void;
 }) {
-  const partyColor: Record<string, string> = {
-    Democrat: 'bg-blue-100 text-blue-700',
-    Republican: 'bg-red-100 text-red-700',
-    Independent: 'bg-purple-100 text-purple-700',
-  };
+  const partyColor = 'bg-emerald-50 text-emerald-800 border border-emerald-200';
 
   return (
     <>
@@ -1317,27 +1317,21 @@ function ClassicQuoteRow({
         <td className="px-4 py-3 text-slate-500">
           {quote.person?.role || '—'}
         </td>
-        <td className="px-4 py-3">
-          {quote.person?.party ? (
-            <span
-              className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
-                partyColor[quote.person.party] || 'bg-slate-100 text-slate-600'
-              }`}
-            >
-              {quote.person.party}
-            </span>
-          ) : (
-            '—'
-          )}
-        </td>
         <td className="px-4 py-3 text-slate-600 align-top">
           <div className="flex flex-wrap gap-1">
-            {(quote.jurisdictions ?? []).length || (quote.topics ?? []).length ? (
+            {quote.person?.party || (quote.jurisdictions ?? []).length || (quote.topics ?? []).length ? (
               <>
+                {quote.person?.party && (
+                  <span
+                    className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium ${partyColor}`}
+                  >
+                    {quote.person.party}
+                  </span>
+                )}
                 {(quote.jurisdictions ?? []).map((tag) => (
                   <span
                     key={`j-${tag}`}
-                    className="inline-block px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-50 text-emerald-800 border border-emerald-200"
+                    className="inline-block px-1.5 py-0.5 rounded text-[10px] font-medium bg-sky-50 text-sky-800 border border-sky-200"
                   >
                     {tag}
                   </span>
@@ -1377,7 +1371,7 @@ function ClassicQuoteRow({
       </tr>
       {isExpanded && (
         <tr className="bg-slate-50">
-          <td colSpan={7} className="px-6 py-4">
+          <td colSpan={6} className="px-6 py-4">
             <ExpandedContent
               quote={quote}
               isEditing={isEditing}
@@ -1484,12 +1478,6 @@ function OrganicCard({
               style={{ color: '#7a8a80', fontFamily: 'Outfit, sans-serif' }}
             >
               {quote.person?.role && <span>{quote.person.role}</span>}
-              {quote.person?.party && (
-                <span>
-                  {quote.person?.role ? '· ' : ''}
-                  {quote.person.party}
-                </span>
-              )}
             </div>
           </div>
           {quote.is_duplicate && (
@@ -1521,14 +1509,26 @@ function OrganicCard({
 
         <div className="mt-3 flex items-center justify-between gap-2">
           <div className="flex flex-wrap gap-1.5">
-            {(quote.jurisdictions ?? []).map((tag) => (
+            {quote.person?.party && (
               <span
-                key={`j-${tag}`}
                 className="px-2 py-0.5 rounded-full text-[10px] font-medium"
                 style={{
                   background: '#e8f0ea',
                   color: '#3d7a54',
                   border: '1px solid #c8dcc8',
+                }}
+              >
+                {quote.person.party}
+              </span>
+            )}
+            {(quote.jurisdictions ?? []).map((tag) => (
+              <span
+                key={`j-${tag}`}
+                className="px-2 py-0.5 rounded-full text-[10px] font-medium"
+                style={{
+                  background: '#e5ecf0',
+                  color: '#3a6080',
+                  border: '1px solid #c0ccd8',
                 }}
               >
                 {tag}
