@@ -81,7 +81,7 @@ export default function FilterBarHome({ filters, onChange, jurisdictions, topics
   return (
     <div className="mb-6">
       <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2.5 py-1">
+        <div className="flex items-center gap-1.5">
           <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 shrink-0">Sort</span>
           <select
             value={filters.sort_by || ''}
@@ -93,7 +93,7 @@ export default function FilterBarHome({ filters, onChange, jurisdictions, topics
                 page: 1,
               })
             }
-            className="px-2 py-1 border border-slate-200 rounded text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="px-3 py-2 border border-slate-200 rounded text-sm bg-white appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="">Date Added</option>
             <option value="date_said">Date Spoken</option>
@@ -116,21 +116,21 @@ export default function FilterBarHome({ filters, onChange, jurisdictions, topics
         </div>
 
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            className="h-9 w-9 flex items-center justify-center border border-slate-300 rounded-lg bg-white text-slate-600 hover:text-slate-800 hover:bg-slate-50"
-            onClick={() => setShowAdvanced(!showAdvanced)}
-            title={showAdvanced ? 'Hide filters' : 'Show filters'}
-          >
-            <FilterIcon size={16} />
-          </button>
           <input
             type="text"
             value={filters.search || ''}
             onChange={(e) => update('search', e.target.value)}
             placeholder="Search quote text..."
-            className="px-3 bg-white py-2 border border-slate-300 rounded-lg text-sm w-64 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="px-3 border-b border-slate-400 py-2 focus:outline-none text-xs"
           />
+          <button
+            type="button"
+            className="h-9 w-9 flex items-center justify-center cursor-pointer"
+            onClick={() => setShowAdvanced(!showAdvanced)}
+            title={showAdvanced ? 'Hide filters' : 'Show filters'}
+          >
+            <FilterIcon size={16} />
+          </button>
         </div>
       </div>
 
