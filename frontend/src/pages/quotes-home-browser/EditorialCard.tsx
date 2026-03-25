@@ -44,18 +44,17 @@ const EditorialCard = ({
   return (
     <div
       onClick={onToggle}
-      className="grid gap-6 md:grid-cols-[minmax(0,1fr)_260px]"
+      className="grid gap-6 md:grid-cols-[minmax(0,1fr)_350px]"
       style={{ animation: `fadeInUp 0.4s ease-out ${index * 50}ms both` }}
     >
       <div
-        className="bg-white border-l-4 rounded-r-lg transition-all duration-300"
+        className="bg-white border-l-4 rounded-r-lg transition-all duration-300 flex flex-col justify-center px-6 pt-5 pb-4"
         style={{
           borderLeftColor,
           boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
         }}
       >
-        <div className="px-6 pt-5 pb-3 flex flex-col justify-center">
-          <p className="leading-relaxed pr-12" style={{ fontFamily: 'Lora, serif', color: '#2d2a26' }}
+          <p className="leading-relaxed pr-3" style={{ fontFamily: 'Lora, serif', color: '#2d2a26' }}
           >
             &ldquo;{quote.quote_text}&rdquo;
           </p>
@@ -79,18 +78,16 @@ const EditorialCard = ({
             )}
             {quote.person?.role && (
               <span className="text-sm">
-                , {quote.person.role}
+                , {quote.person.role},{" "} 
+                {quote.date_said && <span className="text-xs opacity-50">{new Date(quote.date_said).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</span>}
               </span>
             )}
-              <div className="flex items-center gap-1 text-black text-xs opacity-50 mt-1">
-               {quote.date_said ? new Date(quote.date_said).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : ''}
-              </div>
+
             </div>
           </div>
-        </div>
       </div>
 
-      <div className="py-1 flex flex-col justify-start pr-8">
+      <div className="py-1 flex flex-col justify-start pr-6">
         {quote.article?.title && (
           <p className="mt-3 mb-2 text-sm leading-tight">
             {quote.article.title}

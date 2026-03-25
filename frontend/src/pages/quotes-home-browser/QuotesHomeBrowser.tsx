@@ -14,7 +14,7 @@ import type { EditFormState, ViewProps } from './types';
 
 const QuotesHomeBrowser = () => {
   const queryClient = useQueryClient();
-  const [filters, setFilters] = useState<QuoteFilters>({ page: 1, page_size: 50 });
+  const [filters, setFilters] = useState<QuoteFilters>({ page: 1, page_size: 50, sort_by: 'date_said', sort_dir: 'desc' });
   const [expanded, setExpanded] = useState<number | null>(null);
   const [editing, setEditing] = useState<number | null>(null);
   const [editForm, setEditForm] = useState<EditFormState>({
