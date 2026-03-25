@@ -88,6 +88,52 @@ TRANSCRIPT_SYSTEM_PROMPT = (
     '"jurisdictions": string[], "topics": string[] }] }'
 )
 
+PAGE_TRANSCRIPT_SYSTEM_PROMPT = (
+    "You are extracting notable, substantive statements about artificial intelligence "
+    "from a written transcript. The page is a transcript of one or more speakers — "
+    "a hearing, press conference, interview, speech, panel discussion, or similar. "
+    "The entire content is quotable; do NOT look for quotation marks. "
+    "Speakers are typically identified by labels at the start of their passages "
+    "(e.g. 'SENATOR SMITH:', 'Mr. Jones:', 'Chairman Powell:', 'Q:', 'A:', or similar "
+    "patterns). Use these labels to attribute each statement to its correct speaker. "
+    "When names appear in ALL CAPS in the label, normalize them to standard title case "
+    "in the speaker_name field (e.g. 'MR. ZUCKERBERG' → 'Mark Zuckerberg' if the full "
+    "name is available elsewhere in the transcript, otherwise 'Mr. Zuckerberg'). "
+    "If a title or role is stated in the transcript (introductions, headers, or context "
+    "lines), use it for speaker_title. "
+    "Focus on statements from policymakers, government officials, government "
+    "institutions, think tanks, industry leaders, or their staff members. "
+    "For each extracted statement return: the substantive text (cleaned up for "
+    "readability — remove filler words, false starts, and procedural boilerplate like "
+    "'I yield back' or 'thank you Mr. Chairman', but preserve the speaker's meaning "
+    "and wording), the speaker's name and title, the speaker_type classification, and "
+    "one to two sentences of context about what was being discussed. "
+    "speaker_type must be one of: 'elected' (elected officials), 'staff' (government "
+    "or organizational staff), 'think_tank' (think tanks or research organizations), "
+    "or 'gov_inst' (government agencies or institutions). If the speaker does not fit "
+    "these categories (e.g. a tech CEO or journalist), still extract the quote but use "
+    "the closest matching type. "
+    "Merge consecutive sentences from the same speaker on the same point into a single "
+    "quote. Only create separate entries for clearly distinct statements or topics from "
+    "the same speaker, or when a different speaker begins. "
+    "For each quote, also assign jurisdiction tags describing the subject matter of "
+    "the statement (NOT the speaker's location or identity). Choose exclusively from "
+    "the canonical list provided in the user message below. When a specific US state is "
+    "relevant, tag both the state name and 'US-state'. When a specific US city or "
+    "county is relevant, tag both the locality name and 'US-local'. Only create a new "
+    "tag if absolutely nothing in the canonical list fits; never create synonyms of "
+    "existing tags. Return jurisdictions as an array of tag name strings. "
+    "For each quote, also assign topic tags describing what the quote is about. "
+    "Strongly prefer tags from the canonical topic list provided in the user message. "
+    "A quote may have more than one topic. Only create a new topic tag if absolutely "
+    "nothing in the canonical list fits; never create synonyms of existing tags. "
+    "Return topics as an array of tag name strings. "
+    "Return a JSON object only, no other "
+    'text. Schema: { "quotes": [{ "speaker_name": string, "speaker_title": string, '
+    '"speaker_type": string, "quote_text": string, "context": string, '
+    '"jurisdictions": string[], "topics": string[] }] }'
+)
+
 SYSTEM_PROMPT = ARTICLE_SYSTEM_PROMPT
 
 
@@ -112,6 +158,12 @@ def extract_quotes(
         extract_instruction = (
             "Extract all notable AI-related statements from the following "
             "YouTube video transcript:"
+        )
+    elif source_type == "page_transcript":
+        system_prompt = PAGE_TRANSCRIPT_SYSTEM_PROMPT
+        extract_instruction = (
+            "Extract all notable AI-related statements from the following "
+            "transcript:"
         )
     else:
         system_prompt = ARTICLE_SYSTEM_PROMPT

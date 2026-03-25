@@ -1,4 +1,5 @@
 import io
+import re
 from datetime import date
 from typing import Optional
 from urllib.parse import urlparse
@@ -149,6 +150,54 @@ def _parse_publish_date(soup: BeautifulSoup) -> Optional[date]:
     return None
 
 
+_TRANSCRIPT_URL_KEYWORDS = re.compile(
+    r"transcript|hearing|testimony|remarks|briefing|press[-_ ]?conference"
+    r"|opening[-_ ]?statement|keynote",
+    re.IGNORECASE,
+)
+
+_SPEAKER_LABEL_RE = re.compile(
+    r"^(?:"
+    r"(?:(?:Mr|Mrs|Ms|Dr|Sen|Rep|Chairman|Chairwoman|Chairperson"
+    r"|Senator|Representative|Secretary|Director|Commissioner"
+    r"|Governor|Mayor|President|Vice\s+President"
+    r"|General|Admiral|Ambassador|Judge|Justice"
+    r"|The\s+(?:Chairman|Chairwoman|President))"
+    r"\.?\s+[A-Z][A-Za-z\-']+)"
+    r"|(?:[A-Z][A-Z\-']+(?:\s+[A-Z][A-Z\-']+){0,3})"
+    r"|Q|A"
+    r")\s*[:.]",
+    re.MULTILINE,
+)
+
+
+def _detect_transcript(text: str, title: str | None, url: str) -> bool:
+    """Heuristic: return True when the page appears to be a transcript
+    (hearing, interview, press conference, speech) rather than a
+    conventional news article."""
+    url_and_title = f"{url} {title or ''}"
+    if _TRANSCRIPT_URL_KEYWORDS.search(url_and_title):
+        return True
+
+    lines = text.split("\n")
+    if not lines:
+        return False
+
+    label_lines = sum(1 for ln in lines if _SPEAKER_LABEL_RE.match(ln.strip()))
+    distinct_labels = len({
+        m.group()
+        for ln in lines
+        if (m := _SPEAKER_LABEL_RE.match(ln.strip()))
+    })
+
+    if distinct_labels >= 2 and label_lines >= 6:
+        return True
+    if len(lines) > 20 and label_lines / len(lines) > 0.08:
+        return True
+
+    return False
+
+
 def _fetch_html_article(url: str) -> dict:
     headers = {"User-Agent": _USER_AGENT, "Accept": "text/html,*/*;q=0.8"}
     try:
@@ -184,13 +233,18 @@ def _fetch_html_article(url: str) -> dict:
             "or require JavaScript rendering."
         )
 
-    return {
+    result: dict = {
         "title": title,
         "text": text,
         "publication": _derive_publication(url),
         "published_date": published_date,
         "url": url,
     }
+
+    if _detect_transcript(text, title, url):
+        result["source_type"] = "page_transcript"
+
+    return result
 
 
 def _is_youtube_url(url: str) -> bool:
