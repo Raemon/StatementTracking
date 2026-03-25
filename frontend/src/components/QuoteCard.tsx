@@ -1,5 +1,6 @@
 import PersonTypeahead from './PersonTypeahead';
-import type { PersonCreate, SpeakerType, ExistingQuoteMatch } from '../types';
+import TagSelect from './TagSelect';
+import type { PersonCreate, SpeakerType, ExistingQuoteMatch, JurisdictionRow, TopicRow } from '../types';
 
 export interface QuoteCardData {
   speaker_name: string;
@@ -21,6 +22,8 @@ interface Props {
   index: number;
   /** New speakers created elsewhere on this submit page (search merges these in). */
   pendingSpeakers?: PersonCreate[];
+  jurisdictionOptions?: JurisdictionRow[];
+  topicOptions?: TopicRow[];
   onChange: (index: number, updated: Partial<QuoteCardData>) => void;
   onDelete: (index: number) => void;
 }
@@ -29,6 +32,8 @@ export default function QuoteCard({
   data,
   index,
   pendingSpeakers = [],
+  jurisdictionOptions = [],
+  topicOptions = [],
   onChange,
   onDelete,
 }: Props) {
@@ -214,41 +219,30 @@ export default function QuoteCard({
 
         <div>
           <label className="block text-xs font-medium text-slate-500 mb-1">
-            Jurisdiction tags (subject matter; comma-separated)
+            Jurisdictions
           </label>
-          <input
-            type="text"
-            value={data.jurisdiction_names.join(', ')}
-            onChange={(e) =>
-              onChange(index, {
-                jurisdiction_names: e.target.value
-                  .split(',')
-                  .map((s) => s.trim())
-                  .filter(Boolean),
-              })
-            }
-            placeholder="e.g. Colorado, US-state, USA-federal, World"
-            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          <TagSelect
+            selected={data.jurisdiction_names}
+            options={jurisdictionOptions.map((j) => ({
+              name: j.name,
+              label: j.abbreviation || undefined,
+            }))}
+            onChange={(next) => onChange(index, { jurisdiction_names: next })}
+            placeholder="Search jurisdictions or add new..."
+            color="blue"
           />
         </div>
 
         <div>
           <label className="block text-xs font-medium text-slate-500 mb-1">
-            Topic tags (comma-separated)
+            Topics
           </label>
-          <input
-            type="text"
-            value={data.topic_names.join(', ')}
-            onChange={(e) =>
-              onChange(index, {
-                topic_names: e.target.value
-                  .split(',')
-                  .map((s) => s.trim())
-                  .filter(Boolean),
-              })
-            }
-            placeholder="e.g. regulation, AGI, jobs"
-            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          <TagSelect
+            selected={data.topic_names}
+            options={topicOptions.map((t) => ({ name: t.name }))}
+            onChange={(next) => onChange(index, { topic_names: next })}
+            placeholder="Search topics or add new..."
+            color="violet"
           />
         </div>
       </div>

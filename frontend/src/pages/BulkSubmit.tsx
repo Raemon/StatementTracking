@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
-import { bulkProcessEntry, saveArticle, checkDuplicates, checkExistingUrls } from '../api/client';
+import { useQuery } from '@tanstack/react-query';
+import { bulkProcessEntry, saveArticle, checkDuplicates, checkExistingUrls, fetchJurisdictions, fetchTopics } from '../api/client';
 import type { BulkEntry, BulkEntryResult } from '../api/client';
 import type { ArticleMetadata, PersonCreate, QuoteSaveItem } from '../types';
 import QuoteCard, { type QuoteCardData } from '../components/QuoteCard';
@@ -147,6 +148,16 @@ function ReviewPanel({
   const article = result.article!;
   const extractedQuotes = result.extracted_quotes || [];
 
+  const { data: jurisdictionOptions = [] } = useQuery({
+    queryKey: ['jurisdictions'],
+    queryFn: fetchJurisdictions,
+  });
+
+  const { data: topicOptions = [] } = useQuery({
+    queryKey: ['topics'],
+    queryFn: fetchTopics,
+  });
+
   const [quotes, setQuotes] = useState<QuoteCardData[]>(() =>
     extractedQuotes.map((q) => ({
       speaker_name: q.speaker_name,
@@ -290,6 +301,8 @@ function ReviewPanel({
             data={q}
             index={i}
             pendingSpeakers={pendingSpeakers}
+            jurisdictionOptions={jurisdictionOptions}
+            topicOptions={topicOptions}
             onChange={handleChange}
             onDelete={handleDelete}
           />

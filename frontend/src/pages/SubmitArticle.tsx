@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
-import { extractArticle, saveArticle, checkDuplicates } from '../api/client';
+import { useQuery } from '@tanstack/react-query';
+import { extractArticle, saveArticle, checkDuplicates, fetchJurisdictions, fetchTopics } from '../api/client';
 import type { ArticleMetadata, PersonCreate, QuoteSaveItem, SourceType } from '../types';
 import QuoteCard, { type QuoteCardData } from '../components/QuoteCard';
 
@@ -51,6 +52,16 @@ export default function SubmitArticle() {
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
   const [sourceType, setSourceType] = useState<SourceType>('article');
+
+  const { data: jurisdictionOptions = [] } = useQuery({
+    queryKey: ['jurisdictions'],
+    queryFn: fetchJurisdictions,
+  });
+
+  const { data: topicOptions = [] } = useQuery({
+    queryKey: ['topics'],
+    queryFn: fetchTopics,
+  });
 
   function switchMode(newMode: SubmitMode) {
     setMode(newMode);
@@ -392,6 +403,8 @@ export default function SubmitArticle() {
                 data={q}
                 index={i}
                 pendingSpeakers={pendingSpeakers}
+                jurisdictionOptions={jurisdictionOptions}
+                topicOptions={topicOptions}
                 onChange={handleQuoteChange}
                 onDelete={handleQuoteDelete}
               />

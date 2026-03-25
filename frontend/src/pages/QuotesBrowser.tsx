@@ -467,6 +467,9 @@ function SharedEditForm({
   onSave: () => void;
   onCancel: () => void;
 }) {
+  const [jurisdictionFilter, setJurisdictionFilter] = useState('');
+  const [topicFilter, setTopicFilter] = useState('');
+
   const knownNames = new Set(jurisdictionOptions.map((j) => j.name));
   const selectedNames = new Set(editForm.jurisdiction_names);
   const extraNames = editForm.jurisdiction_names.filter((n) => !knownNames.has(n));
@@ -474,6 +477,23 @@ function SharedEditForm({
   const knownTopicNames = new Set(topicOptions.map((t) => t.name));
   const selectedTopicNames = new Set(editForm.topic_names);
   const extraTopicNames = editForm.topic_names.filter((n) => !knownTopicNames.has(n));
+
+  const jFilterLower = jurisdictionFilter.toLowerCase();
+  const filteredJurisdictions = jurisdictionOptions.filter((j) => {
+    if (selectedNames.has(j.name)) return true;
+    if (!jurisdictionFilter) return true;
+    return (
+      j.name.toLowerCase().includes(jFilterLower) ||
+      (j.abbreviation && j.abbreviation.toLowerCase().includes(jFilterLower))
+    );
+  });
+
+  const tFilterLower = topicFilter.toLowerCase();
+  const filteredTopics = topicOptions.filter((t) => {
+    if (selectedTopicNames.has(t.name)) return true;
+    if (!topicFilter) return true;
+    return t.name.toLowerCase().includes(tFilterLower);
+  });
 
   function toggleName(name: string) {
     const next = selectedNames.has(name)
@@ -528,27 +548,43 @@ function SharedEditForm({
         {jurisdictionOptions.length === 0 ? (
           <p className="text-xs text-slate-500">No jurisdiction list loaded.</p>
         ) : (
-          <div className="max-h-40 overflow-y-auto rounded-lg border border-slate-200 bg-white px-2 py-2">
-            <ul className="space-y-0.5">
-              {jurisdictionOptions.map((j) => (
-                <li key={j.id}>
-                  <label className="flex cursor-pointer items-center gap-2.5 px-2 py-1 text-sm rounded text-slate-700 hover:bg-slate-50">
-                    <input
-                      type="checkbox"
-                      checked={selectedNames.has(j.name)}
-                      onChange={() => toggleName(j.name)}
-                      className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                    />
-                    <span className="min-w-0 flex-1">
-                      {j.name}
-                      {j.abbreviation && (
-                        <span className="text-slate-400"> ({j.abbreviation})</span>
-                      )}
-                    </span>
-                  </label>
-                </li>
-              ))}
-            </ul>
+          <div className="rounded-lg border border-slate-200 bg-white">
+            <div className="px-2 pt-2 pb-1">
+              <input
+                type="text"
+                value={jurisdictionFilter}
+                onChange={(e) => setJurisdictionFilter(e.target.value)}
+                placeholder="Type to filter jurisdictions..."
+                className="w-full px-2.5 py-1.5 text-sm border border-slate-200 rounded-md bg-slate-50 text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400"
+              />
+            </div>
+            <div className="max-h-40 overflow-y-auto px-2 py-1">
+              <ul className="space-y-0.5">
+                {filteredJurisdictions.map((j) => (
+                  <li key={j.id}>
+                    <label className="flex cursor-pointer items-center gap-2.5 px-2 py-1 text-sm rounded text-slate-700 hover:bg-slate-50">
+                      <input
+                        type="checkbox"
+                        checked={selectedNames.has(j.name)}
+                        onChange={() => toggleName(j.name)}
+                        className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="min-w-0 flex-1">
+                        {j.name}
+                        {j.abbreviation && (
+                          <span className="text-slate-400"> ({j.abbreviation})</span>
+                        )}
+                      </span>
+                    </label>
+                  </li>
+                ))}
+                {filteredJurisdictions.length === 0 && (
+                  <li className="px-2 py-2 text-xs text-slate-400 italic">
+                    No jurisdictions match &ldquo;{jurisdictionFilter}&rdquo;
+                  </li>
+                )}
+              </ul>
+            </div>
           </div>
         )}
         {extraNames.length > 0 && (
@@ -588,22 +624,38 @@ function SharedEditForm({
         {topicOptions.length === 0 ? (
           <p className="text-xs text-slate-500">No topic list loaded.</p>
         ) : (
-          <div className="max-h-40 overflow-y-auto rounded-lg border border-slate-200 bg-white px-2 py-2">
-            <ul className="space-y-0.5">
-              {topicOptions.map((t) => (
-                <li key={t.id}>
-                  <label className="flex cursor-pointer items-center gap-2.5 px-2 py-1 text-sm rounded text-slate-700 hover:bg-slate-50">
-                    <input
-                      type="checkbox"
-                      checked={selectedTopicNames.has(t.name)}
-                      onChange={() => toggleTopicName(t.name)}
-                      className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                    />
-                    <span className="min-w-0 flex-1">{t.name}</span>
-                  </label>
-                </li>
-              ))}
-            </ul>
+          <div className="rounded-lg border border-slate-200 bg-white">
+            <div className="px-2 pt-2 pb-1">
+              <input
+                type="text"
+                value={topicFilter}
+                onChange={(e) => setTopicFilter(e.target.value)}
+                placeholder="Type to filter topics..."
+                className="w-full px-2.5 py-1.5 text-sm border border-slate-200 rounded-md bg-slate-50 text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400"
+              />
+            </div>
+            <div className="max-h-40 overflow-y-auto px-2 py-1">
+              <ul className="space-y-0.5">
+                {filteredTopics.map((t) => (
+                  <li key={t.id}>
+                    <label className="flex cursor-pointer items-center gap-2.5 px-2 py-1 text-sm rounded text-slate-700 hover:bg-slate-50">
+                      <input
+                        type="checkbox"
+                        checked={selectedTopicNames.has(t.name)}
+                        onChange={() => toggleTopicName(t.name)}
+                        className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="min-w-0 flex-1">{t.name}</span>
+                    </label>
+                  </li>
+                ))}
+                {filteredTopics.length === 0 && (
+                  <li className="px-2 py-2 text-xs text-slate-400 italic">
+                    No topics match &ldquo;{topicFilter}&rdquo;
+                  </li>
+                )}
+              </ul>
+            </div>
           </div>
         )}
         {extraTopicNames.length > 0 && (
