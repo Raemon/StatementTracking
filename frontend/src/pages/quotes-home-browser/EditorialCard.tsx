@@ -34,6 +34,12 @@ const EditorialCard = ({
     queryFn: () => fetchQuote(quote.duplicate_of_id!),
     enabled: !!quote.duplicate_of_id,
   });
+  const partyName = quote.person?.party?.toLowerCase() ?? '';
+  const borderLeftColor = partyName.includes('republican')
+    ? '#dc2626'
+    : partyName.includes('democrat')
+      ? '#2563eb'
+      : '#c9a84c';
 
   return (
     <div
@@ -44,7 +50,7 @@ const EditorialCard = ({
       <div
         className="bg-white border-l-4 rounded-r-lg transition-all duration-300"
         style={{
-          borderLeftColor: '#c9a84c',
+          borderLeftColor,
           boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
         }}
       >
@@ -76,20 +82,6 @@ const EditorialCard = ({
                 , {quote.person.role}
               </span>
             )}
-              {quote.article && (
-                <p className="mt-1 text-xs text-blue-700 opacity-75">
-                  <a
-                    href={quote.article.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="hover:underline"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    {quote.article.title || quote.article.url}
-                  </a> (<span>{articleDomain})</span>
-                  <Link2 size={13} className="inline mb-0.5 ml-1" />
-                </p>
-              )}
               <div className="flex items-center gap-1 text-black text-xs opacity-50 mt-1">
                {quote.date_said ? new Date(quote.date_said).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : ''}
               </div>
@@ -100,9 +92,23 @@ const EditorialCard = ({
 
       <div className="py-1 flex flex-col justify-start pr-8">
         {quote.context && (
-          <div className="text-xs color-gray-500">
+          <div className="text-xs text-gray-500">
               {quote.context}
           </div>
+        )}
+        {quote.article && (
+          <p className="mt-3 mb-1 text-xs text-blue-600">
+            <a
+              href={quote.article.url}
+              target="_blank"
+              rel="noreferrer"
+              className="hover:underline"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <span>{articleDomain}</span>
+               <Link2 size={13} className="inline mb-0.5 ml-1" />
+            </a>
+          </p>
         )}
         <div
           className="flex items-center gap-3 text-xs"
@@ -202,7 +208,7 @@ const EditorialCard = ({
               </div>
             )}
 
-            {quote.date_recorded && quote.date_said && <>
+            {quote.date_recorded && <>
               <p className="text-xs mt-2" style={{ color: '#9a9287' }}>
                 Added {quote.date_recorded}
               </p>
