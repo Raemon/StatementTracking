@@ -93,7 +93,6 @@ const EditorialView = ({
                 key={q.id}
                 quote={q}
                 index={i}
-                isExpanded={expanded === q.id}
                 isEditing={editing === q.id}
                 editForm={editForm}
                 setEditForm={setEditForm}

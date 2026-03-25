@@ -32,7 +32,6 @@ export interface ViewProps {
 export interface QuoteItemProps {
   quote: QuoteWithDetails;
   index: number;
-  isExpanded: boolean;
   isEditing: boolean;
   editForm: EditFormState;
   setEditForm: (f: EditFormState) => void;

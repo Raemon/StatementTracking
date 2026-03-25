@@ -8,7 +8,6 @@ import type { QuoteItemProps } from './types';
 const EditorialCard = ({
   quote,
   index,
-  isExpanded,
   isEditing,
   editForm,
   setEditForm,
@@ -43,9 +42,7 @@ const EditorialCard = ({
         className="relative bg-white border-l-4 rounded-r-lg cursor-pointer transition-all duration-300"
         style={{
           borderLeftColor: '#c9a84c',
-          boxShadow: isExpanded
-            ? '0 4px 20px rgba(0,0,0,0.08)'
-            : '0 1px 4px rgba(0,0,0,0.06)',
+          boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
           animation: `fadeInUp 0.4s ease-out ${index * 50}ms both`,
         }}
       >
