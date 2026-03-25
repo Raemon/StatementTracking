@@ -1,6 +1,7 @@
 import FilterBar from '../../components/FilterBar';
 import EditorialCard from './EditorialCard';
 import type { ViewProps } from './types';
+import { Link } from 'react-router-dom';
 
 const EditorialView = ({
   filters,
@@ -26,6 +27,13 @@ const EditorialView = ({
       className="-mx-12 -my-8 px-12 shadow-lg py-8 min-h-screen"
       style={{ background: '#faf7f2' }}
     >
+      <Link
+        to="/quotes"
+        className="fixed top-3 left-3 text-sm hover:opacity-70 transition z-20"
+        style={{ fontFamily: 'Lora, serif', color: '#6b6050' }}
+      >
+        Admin
+      </Link>
       <div className="text-center mb-8">
         <h2
           className="text-3xl font-bold tracking-[0.18em] uppercase"
