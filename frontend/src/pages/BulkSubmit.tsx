@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import { bulkProcessEntry, saveArticle, checkDuplicates, checkExistingUrls } from '../api/client';
-import type { BulkEntry, BulkEntryResult, BulkUnmatchedQuote } from '../api/client';
+import type { BulkEntry, BulkEntryResult } from '../api/client';
 import type { ArticleMetadata, PersonCreate, QuoteSaveItem } from '../types';
 import QuoteCard, { type QuoteCardData } from '../components/QuoteCard';
 
